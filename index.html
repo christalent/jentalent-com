@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jen Talent | Notary Public</title>
+  <meta name="description" content="Jen Talent — Notary Public serving the Longview, WA area. Mobile and available appointments.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo">Jen Talent</div>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="services.html">Services</a></li>
+        <li><a href="resume.html">Resume</a></li>
+        <li><a href="log.html">Notary Log</a></li>
+      </ul>
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+    </nav>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="index.html" class="active">Home</a></li>
+      <li><a href="services.html">Services</a></li>
+      <li><a href="resume.html">Resume</a></li>
+      <li><a href="log.html">Notary Log</a></li>
+    </ul>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <h1>Notary Public</h1>
+        <p class="tagline">Serving the Longview, WA Community</p>
+        <p class="hero-sub">Professional, reliable, and convenient notary services. Available for appointments and mobile notarization.</p>
+        <a href="services.html" class="btn btn-primary">View Services</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2>About</h2>
+        <div class="about-grid">
+          <div class="about-text">
+            <p>Hi, I'm Jen Talent. I'm a Notary Public dedicated to serving the Longview and surrounding Cowlitz County community with professional notarization services.</p>
+            <p>Whether you need documents notarized for real estate transactions, legal matters, business purposes, or personal affairs, I'm here to help make the process smooth and stress-free.</p>
+            <p>I offer flexible scheduling and mobile services to accommodate your needs. Your documents are handled with care and complete confidentiality.</p>
+          </div>
+          <div class="about-card">
+            <div class="card-icon">📍</div>
+            <h3>Location</h3>
+            <p>Longview, WA<br>Cowlitz County</p>
+          </div>
+          <div class="about-card">
+            <div class="card-icon">📅</div>
+            <h3>Appointments</h3>
+            <p>Available by appointment<br>Flexible scheduling</p>
+          </div>
+          <div class="about-card">
+            <div class="card-icon">🚗</div>
+            <h3>Mobile Service</h3>
+            <p>Available for on-site<br>notarization</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <h2>Common Documents I Notarize</h2>
+        <div class="services-preview">
+          <div class="service-item">
+            <div class="service-icon">🏠</div>
+            <h3>Real Estate</h3>
+            <p>Deeds, mortgages, refinancing documents, and title transfers</p>
+          </div>
+          <div class="service-item">
+            <div class="service-icon">⚖️</div>
+            <h3>Legal Documents</h3>
+            <p>Powers of attorney, affidavits, sworn statements</p>
+          </div>
+          <div class="service-item">
+            <div class="service-icon">📝</div>
+            <h3>Contracts</h3>
+            <p>Business agreements, leases, and consent forms</p>
+          </div>
+          <div class="service-item">
+            <div class="service-icon">📄</div>
+            <h3>Personal</h3>
+            <p>Wills, trusts, healthcare directives, and more</p>
+          </div>
+        </div>
+        <div class="cta-center">
+          <a href="services.html" class="btn btn-outline">Full Service List</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2>Get in Touch</h2>
+        <p class="contact-intro">Ready to schedule or have questions? Reach out and I'll get back to you promptly.</p>
+        <div class="contact-cards">
+          <div class="contact-card">
+            <div class="contact-icon">📧</div>
+            <h3>Email</h3>
+            <p><a href="mailto:jeniffer@jeniffer.org">jeniffer@jeniffer.org</a></p>
+          </div>
+          <div class="contact-card">
+            <div class="contact-icon">📱</div>
+            <h3>Phone</h3>
+            <p>Available upon request</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Jen Talent, Notary Public. All rights reserved.</p>
+      <p>Longview, WA</p>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+  <script>
+    function toggleMobileMenu() {
+      document.getElementById('mobileMenu').classList.toggle('show');
+    }
+  </script>
+</body>
+</html>

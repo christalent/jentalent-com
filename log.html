@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notary Log | Jen Talent, Notary Public</title>
+  <meta name="description" content="Jen Talent — Notary Log. Track notarized documents and clients securely.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo">Jen Talent</div>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="services.html">Services</a></li>
+        <li><a href="resume.html">Resume</a></li>
+        <li><a href="log.html" class="active">Notary Log</a></li>
+      </ul>
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+    </nav>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="services.html">Services</a></li>
+      <li><a href="resume.html">Resume</a></li>
+      <li><a href="log.html" class="active">Notary Log</a></li>
+    </ul>
+  </header>
+
+  <main>
+    <section class="page-header">
+      <div class="container">
+        <h1>Notary Log</h1>
+        <p class="page-subtitle">Track clients and documents you notarize</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="log-info">
+          <div class="log-info-icon">🔒</div>
+          <div>
+            <strong>Your data stays private</strong>
+            <p>All entries are stored locally on your device. Nothing is sent to any server.</p>
+          </div>
+        </div>
+
+        <div class="log-controls">
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search by client name or document type..." onkeyup="filterEntries()">
+          </div>
+          <div class="log-buttons">
+            <button class="btn btn-primary" onclick="openAddModal()">+ Add Entry</button>
+            <button class="btn btn-outline" onclick="exportLog()">Export CSV</button>
+          </div>
+        </div>
+
+        <div class="log-stats">
+          <div class="stat-box">
+            <span class="stat-number" id="totalEntries">0</span>
+            <span class="stat-label">Total Entries</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-number" id="thisMonth">0</span>
+            <span class="stat-label">This Month</span>
+          </div>
+        </div>
+
+        <div class="log-table-container">
+          <table class="log-table" id="logTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Client Name</th>
+                <th>Document Type</th>
+                <th>Notarization Type</th>
+                <th>Notes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <!-- Entries will be populated here -->
+            </tbody>
+          </table>
+          <div class="empty-state" id="emptyState" style="display:none;">
+            <p>No entries yet. Click "+ Add Entry" to log your first notarization.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add/Edit Modal -->
+  <div id="entryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Entry</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <form id="entryForm" onsubmit="saveEntry(event)">
+        <input type="hidden" id="entryId">
+        
+        <div class="form-group">
+          <label for="entryDate">Date *</label>
+          <input type="date" id="entryDate" required>
+        </div>
+
+        <div class="form-group">
+          <label for="clientName">Client Name *</label>
+          <input type="text" id="clientName" placeholder="Full name" required>
+        </div>
+
+        <div class="form-group">
+          <label for="documentType">Document Type *</label>
+          <select id="documentType" required>
+            <option value="">Select type...</option>
+            <option value="Deed">Deed</option>
+            <option value="Mortgage">Mortgage</option>
+            <option value="Refinance">Refinance</option>
+            <option value="Power of Attorney">Power of Attorney</option>
+            <option value="Affidavit">Affidavit</option>
+            <option value="Contract">Contract / Agreement</option>
+            <option value="Lease">Lease</option>
+            <option value="Will">Will</option>
+            <option value="Trust">Trust</option>
+            <option value="Healthcare Directive">Healthcare Directive</option>
+            <option value="Court Document">Court Document</option>
+            <option value="Consent Form">Consent Form</option>
+            <option value="Travel Consent">Travel Consent (Minor)</option>
+            <option value="Copy Certification">Copy Certification</option>
+            <option value="Business Document">Business Document</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="notarizationType">Notarization Type *</label>
+          <select id="notarizationType" required>
+            <option value="">Select type...</option>
+            <option value="Acknowledgment">Acknowledgment</option>
+            <option value="Jurat">Jurat (Subscribe & Swear)</option>
+            <option value="Copy Certification">Copy Certification</option>
+            <option value="RON">Remote Online (RON)</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Notes</label>
+          <textarea id="notes" rows="3" placeholder="Any additional details (optional)"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Jen Talent, Notary Public. All rights reserved.</p>
+      <p>Longview, WA</p>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+  <script>
+    let entries = JSON.parse(localStorage.getItem('notaryLogEntries') || '[]');
+    
+    function renderEntries() {
+      const tbody = document.getElementById('logTableBody');
+      const emptyState = document.getElementById('emptyState');
+      
+      if (entries.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'block';
+        document.getElementById('totalEntries').textContent = '0';
+        document.getElementById('thisMonth').textContent = '0';
+        return;
+      }
+      
+      emptyState.style.display = 'none';
+      
+      const sorted = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+      tbody.innerHTML = sorted.map((e, i) => `
+        <tr>
+          <td>${formatDate(e.date)}</td>
+          <td>${escapeHtml(e.clientName)}</td>
+          <td>${escapeHtml(e.documentType)}</td>
+          <td>${escapeHtml(e.notarizationType)}</td>
+          <td>${escapeHtml(e.notes || '—')}</td>
+          <td>
+            <button class="btn-small" onclick="editEntry(${i})">Edit</button>
+            <button class="btn-small btn-danger" onclick="deleteEntry(${i})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+      
+      // Stats
+      document.getElementById('totalEntries').textContent = entries.length;
+      const now = new Date();
+      const thisMonth = entries.filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length;
+      document.getElementById('thisMonth').textContent = thisMonth;
+    }
+    
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'Add Entry';
+      document.getElementById('entryForm').reset();
+      document.getElementById('entryId').value = '';
+      document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('entryModal').classList.add('show');
+    }
+    
+    function editEntry(index) {
+      const entry = entries[index];
+      document.getElementById('modalTitle').textContent = 'Edit Entry';
+      document.getElementById('entryId').value = index;
+      document.getElementById('entryDate').value = entry.date;
+      document.getElementById('clientName').value = entry.clientName;
+      document.getElementById('documentType').value = entry.documentType;
+      document.getElementById('notarizationType').value = entry.notarizationType;
+      document.getElementById('notes').value = entry.notes || '';
+      document.getElementById('entryModal').classList.add('show');
+    }
+    
+    function closeModal() {
+      document.getElementById('entryModal').classList.remove('show');
+    }
+    
+    function saveEntry(e) {
+      e.preventDefault();
+      const id = document.getElementById('entryId').value;
+      const entry = {
+        date: document.getElementById('entryDate').value,
+        clientName: document.getElementById('clientName').value.trim(),
+        documentType: document.getElementById('documentType').value,
+        notarizationType: document.getElementById('notarizationType').value,
+        notes: document.getElementById('notes').value.trim()
+      };
+      
+      if (id === '') {
+        entries.push(entry);
+      } else {
+        entries[parseInt(id)] = entry;
+      }
+      
+      localStorage.setItem('notaryLogEntries', JSON.stringify(entries));
+      closeModal();
+      renderEntries();
+    }
+    
+    function deleteEntry(index) {
+      if (confirm('Delete this entry? This cannot be undone.')) {
+        entries.splice(index, 1);
+        localStorage.setItem('notaryLogEntries', JSON.stringify(entries));
+        renderEntries();
+      }
+    }
+    
+    function filterEntries() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const rows = document.getElementById('logTableBody').querySelectorAll('tr');
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+    }
+    
+    function exportLog() {
+      if (entries.length === 0) {
+        alert('No entries to export.');
+        return;
+      }
+      const headers = ['Date', 'Client Name', 'Document Type', 'Notarization Type', 'Notes'];
+      const rows = entries.map(e => [
+        e.date,
+        e.clientName,
+        e.documentType,
+        e.notarizationType,
+        e.notes || ''
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `notary-log-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function toggleMobileMenu() {
+      document.getElementById('mobileMenu').classList.toggle('show');
+    }
+
+    // Init
+    renderEntries();
+  </script>
+
+  <style>
+    .log-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: #e8f5e9;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .log-info-icon { font-size: 1.5rem; }
+    .log-info p { margin: 0; font-size: 0.9rem; color: #2e7d32; }
+    
+    .log-controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .search-box { flex: 1; min-width: 200px; }
+    .search-box input {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .log-buttons { display: flex; gap: 0.5rem; }
+    
+    .log-stats {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-box {
+      background: #f5f5f5;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-number { font-size: 2rem; font-weight: bold; color: #333; }
+    .stat-label { display: block; font-size: 0.85rem; color: #666; }
+    
+    .log-table-container { overflow-x: auto; }
+    .log-table { width: 100%; border-collapse: collapse; }
+    .log-table th, .log-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    .log-table th { background: #f9f9f9; font-weight: 600; }
+    .log-table tr:hover { background: #f5f5f5; }
+    
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #666;
+    }
+    
+    .btn-small {
+      padding: 0.3rem 0.7rem;
+      font-size: 0.85rem;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-small:hover { background: #f0f0f0; }
+    .btn-small.btn-danger { color: #c62828; border-color: #ef9a9a; }
+    .btn-small.btn-danger:hover { background: #ffebee; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+    
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.3rem; font-weight: 600; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; }
+  </style>
+</body>
+</html>
