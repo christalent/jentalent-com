@@ -2,6 +2,26 @@
 
 ## 2026-10-01
 
+### SEO metadata + structured data (issue #5)
+- Added per-page `<title>`, `<meta description>`, and `<link rel="canonical">` (was already present on most pages; made explicit on all).
+- Added **Open Graph** tags (`og:title`, `og:description`, `og:type`, `og:url`, `og:site_name`, `og:locale`) plus `profile:first_name` / `profile:last_name` on the resume page. `og:image` left as a `<!-- TODO -->` — to publish, drop a 1200×630 PNG at `/public/og-image.png` on the server and uncomment the example line in each head.
+- Added **Twitter Card** tags (`twitter:card=summary`, `twitter:title`, `twitter:description`).
+- Added **JSON-LD structured data** in `<script type="application/ld+json">` blocks:
+  - `index.html` → `LocalBusiness` with name, URL, email, address (Longview, WA 98632), areaServed (Longview / Kelso / Castle Rock / Cowlitz County), `knowsAbout`, `openingHoursSpecification` (Mon–Fri 09:00–17:00), `priceRange: "$$"`.
+  - `services.html` → `WebPage` with `isPartOf.WebSite` and `about.LocalBusiness` pointing at the home page.
+  - `resume.html` → `Person` with `jobTitle: Notary Public`, `worksFor.LocalBusiness` pointing at the home page, address, `knowsAbout` (notary + executive admin).
+  - `log.html` → `WebPage` (also marked `<meta name="robots" content="noindex">` since the log is private).
+- Phone number is **not** published in any JSON-LD — matches the home-page policy ("Phone: Available upon request").
+- Added `robots.txt`: allows everything except `/log.html` (Disallow), points at `sitemap.xml`.
+- Added `sitemap.xml`: lists `/`, `/services.html`, `/resume.html` (log.html intentionally excluded).
+- **TODO for Chris before going live:**
+  1. Confirm ZIP `98632` for Longview (and add a `streetAddress` if you want Google Maps preview).
+  2. Adjust `openingHoursSpecification` if Mon–Fri 9–5 doesn't match your real schedule.
+  3. Add an `og-image.png` (1200×630) when convenient and uncomment the corresponding meta tags in all 4 pages.
+- Closes #5.
+
+## 2026-10-01
+
 ### Site polish
 - **Canonical name** across all pages: now `Jenifer Talent` everywhere (was a mix of `Jen`, `Jeni`, `Jenifer`). Logos, titles, meta descriptions, footers, and intro paragraph updated on all 4 pages.
 - **Canonical contact email** across all pages: now `jeniffer@jeniffer.org` (the address used in footers/contact cards). Resume header no longer shows the alt `jentalent@gmail.com` address.

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /log.html
+
+Sitemap: https://www.jentalent.com/sitemap.xml
