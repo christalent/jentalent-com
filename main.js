@@ -1,4 +1,4 @@
-// Jeni Talent - Notary Public Site
+// Jenifer Talent - Notary Public Site
 // Main JS - Nav and utilities
 
 function toggleMobileMenu() {
