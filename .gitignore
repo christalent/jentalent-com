@@ -1,6 +1,12 @@
 *.tmp
 *.log
+*.local
 .env
 .DS_Store
+Thumbs.db
 local/
 dist/
+node_modules/
+package-lock.json
+.vscode/
+.idea/
