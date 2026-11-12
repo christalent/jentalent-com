@@ -1,5 +1,89 @@
 # Changelog
 
+## 2026-11-11 — Washington notary journal compliance (RCW 42.45.180 / WAC 308-30-200)
+
+The notary log now records everything Washington law requires of a journal
+entry, and the electronic journal adds the authentication, tamper-evidence,
+backup and copy capabilities required of an electronic journal.
+
+### Required entry fields (RCW 42.45.180(4), WAC 308-30-200(1))
+
+- **Time of the notarial act** — stored alongside the date, displayed as one
+  combined "Date & Time" column. The add-entry form defaults to the current
+  local date and time.
+- **Principal address** — the full address of the individual for whom the act
+  was performed (RCW 42.45.180(4)(c)).
+- **Method of identifying the principal** — a select offering personal
+  knowledge, government-issued photo ID, remote online notarization,
+  satisfactory evidence/document owner, and other (WAC 308-30-200(1)(ii)).
+- **Principal signature** — a pointer-events canvas signature pad with a
+  typed-name fallback for accessibility and for devices without a stylus. The
+  signature is stored as a PNG data URL or as the typed name, and round-trips
+  through storage and every export (WAC 308-30-200(1)(iii)).
+- **Number of statements/documents notarized** — an integer of 1 or more, as
+  required when a single entry covers several statements or documents for the
+  same individual on the same date (WAC 308-30-190(2)).
+
+The existing fields (date, client name, document type, notarization type,
+notes) are unchanged.
+
+### Electronic journal capabilities (WAC 308-30-200(2))
+
+- **(a) In addition to the tangible journal** — a plain-language notice at the
+  top of the log page states that this electronic journal is maintained *in
+  addition to* the tangible journal, that the tangible journal remains the
+  primary record, and that this app does not replace it.
+- **(c) Authentication** — a password gate. On first use the notary sets a
+  password; thereafter the journal is locked until it is entered. The
+  password is stored only as a PBKDF2-HMAC-SHA-256 hash with a per-journal
+  random salt. A "forgot password" flow resets the lock *without* deleting
+  any entry.
+- **(d) Tamper-evident** — every entry is chained to the previous one with a
+  SHA-256 hash. A "Check integrity" button recomputes the chain and reports
+  any entry that was changed outside the app.
+- **(e) Backup** — a one-click "Download backup" writes the full journal
+  (including the hash chain and signature data) to a JSON file. A restore flow
+  validates a backup file before it is allowed to overwrite anything, and a
+  reminder banner prompts for a backup when the journal has not been backed
+  up recently. Backups are never downloaded automatically.
+- **(f) Copies** — a "Copy" action on any entry produces a standalone,
+  printable view (or a copy of the text) that can be handed to a client or
+  copied into the tangible journal.
+
+### Legacy entries
+
+Entries created before this update keep their original values and are shown
+with a "Legacy — missing required fields" badge listing exactly which
+required fields are absent. Nothing is invented for them: no time, address,
+identification method, signature, or statement count is fabricated. They can
+be edited to complete them.
+
+### Exports
+
+- The CSV export now includes every new field, keeps the formula-injection
+  guard, keeps the newest-first order, and includes a combined date-and-time
+  column plus the entry hash.
+- A JSON export was added; it doubles as the backup file.
+
+### Open Graph / Twitter card
+
+- `og-image.png` (1200×630) is now published and referenced from all four
+  pages, with `og:image:width`, `og:image:height` and `og:image:alt`.
+- `twitter:card` is now `summary_large_image` on all four pages, with
+  `twitter:image` and `twitter:image:alt`.
+- The image was added to the JSON-LD structured data on every page.
+
+### Other
+
+- The log page now states the 10-year retention requirement
+  (RCW 42.45.180(1)) and that the journal is the notary's exclusive property
+  (WAC 308-30-200(3)). It describes what the tool does and is not legal
+  advice.
+- The node logic harness was extended to cover date+time parsing, the hash
+  chain (including tamper detection), CSV output with the new fields, the
+  backup/restore format, password hashing, and the legacy-entry migration
+  path.
+
 ## 2026-11-11 — Restore log page styles and harden the notary log
 
 ### Fixed

@@ -455,6 +455,308 @@ body.modal-open { overflow: hidden; }
   border: 0;
 }
 
+/* [hidden] must win over any display rule set above, otherwise a hidden
+   element with a display value stays visible. */
+[hidden] { display: none !important; }
+
+/* === WA Notary Journal Compliance (RCW 42.45.180 / WAC 308-30-200) === */
+
+/* Plain-language statement that the electronic journal is IN ADDITION TO the
+   tangible journal and does not replace it (WAC 308-30-200(2)(a)). */
+.wac-notice {
+  background: #fff8e1;
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+.wac-notice h2 {
+  font-size: 1.05rem;
+  margin-bottom: 0.6rem;
+  color: var(--primary-dark);
+}
+.wac-notice p { margin-bottom: 0.75rem; }
+.wac-notice p:last-child { margin-bottom: 0; }
+.wac-notice abbr {
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-light);
+  cursor: help;
+}
+.wac-notice-foot {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+/* Backup reminder (WAC 308-30-200(2)(e)). */
+.backup-reminder {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  border-radius: var(--radius);
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  color: #7a4b00;
+}
+.backup-reminder .btn-small {
+  border-color: var(--accent);
+  color: #7a4b00;
+  white-space: nowrap;
+}
+
+/* Restore-from-backup confirmation. */
+.restore-panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.restore-panel p { margin-bottom: 0; }
+.restore-panel .form-actions { margin-top: 0.75rem; }
+
+/* Integrity-check result (WAC 308-30-200(2)(d)). */
+.integrity-status {
+  border-radius: var(--radius);
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  color: var(--text-light);
+}
+.integrity-status.integrity-ok {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: var(--primary-dark);
+}
+.integrity-status.integrity-bad {
+  background: #ffebee;
+  border-color: #ef9a9a;
+  color: #b71c1c;
+}
+.integrity-status.integrity-warn {
+  background: #fff8e1;
+  border-color: #ffe082;
+  color: #7a4b00;
+}
+
+/* Table cell helpers. */
+.cell-sub {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  font-weight: normal;
+}
+.cell-muted { color: var(--text-light); }
+.row-actions { white-space: nowrap; }
+
+.sig-thumb {
+  max-width: 140px;
+  max-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  vertical-align: middle;
+}
+.sig-full {
+  display: block;
+  max-width: 100%;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* "Legacy — missing required fields" badge. */
+.status-badge {
+  display: inline-block;
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  color: #7a4b00;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-complete {
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+/* === Entry form (add / edit) === */
+.form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.form-row .form-group { flex: 1; min-width: 160px; }
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin: 0.3rem 0 0;
+}
+.field-error {
+  color: #c62828;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0;
+}
+
+.signature-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+.signature-fieldset legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+.signature-pad-wrap {
+  border: 1px dashed #bbb;
+  border-radius: var(--radius);
+  background: #fff;
+  overflow: hidden;
+}
+#signatureCanvas {
+  display: block;
+  width: 100%;
+  height: 180px;
+  touch-action: none; /* let a stylus/finger draw instead of scrolling */
+  cursor: crosshair;
+}
+.signature-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.signature-status {
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+.signature-typed-label {
+  display: block;
+  margin: 0.9rem 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* === Per-entry copy === */
+.copy-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.copy-list dt {
+  font-weight: 600;
+  color: var(--text-light);
+}
+.copy-list dd { margin: 0; }
+.copy-warning {
+  margin-top: 1rem;
+  background: #fff3e0;
+  border-left: 4px solid var(--accent);
+  padding: 0.6rem 0.85rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #7a4b00;
+}
+.copy-signature-typed {
+  margin-top: 1rem;
+  font-style: italic;
+}
+.copy-status {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  min-height: 1.2em;
+  margin: 0.75rem 0 0;
+}
+
+/* === Lock screen (WAC 308-30-200(2)(c)) === */
+.lock-screen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 25, 15, 0.92);
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+.lock-screen.show { display: flex; }
+.lock-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+}
+.lock-panel h2 {
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+.lock-panel h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+.lock-panel > p { font-size: 0.9rem; color: var(--text-light); }
+.lock-panel .form-group { margin-top: 1rem; }
+.lock-panel .form-actions { justify-content: stretch; }
+.lock-panel .form-actions .btn { flex: 1; }
+.lock-forgot { margin: 0.75rem 0 0; }
+.lock-note {
+  font-size: 0.8rem !important;
+  color: var(--text-light) !important;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin: 1rem 0 0 !important;
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+}
+#lockResetPanel {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+#lockResetPanel p { font-size: 0.9rem; }
+
+/* Hide the journal behind the lock screen. */
+body.locked #journalMain,
+body.locked footer { display: none; }
+
+/* === Print: only the per-entry copy === */
+.print-area { display: none; }
+@media print {
+  body > *:not(#printArea) { display: none !important; }
+  #printArea {
+    display: block !important;
+    padding: 0;
+    color: #000;
+    background: #fff;
+  }
+  .print-copy {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12pt;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+}
+
 /* === Responsive === */
 @media (max-width: 768px) {
   .nav-links { display: none; }
