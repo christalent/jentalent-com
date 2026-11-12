@@ -55,7 +55,7 @@
         <li><a href="resume.html">Resume</a></li>
         <li><a href="log.html">Notary Log</a></li>
       </ul>
-      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+      <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
     </nav>
     <ul class="mobile-menu" id="mobileMenu">
       <li><a href="index.html">Home</a></li>
@@ -231,10 +231,5 @@
   </footer>
 
   <script src="main.js"></script>
-  <script>
-    function toggleMobileMenu() {
-      document.getElementById('mobileMenu').classList.toggle('show');
-    }
-  </script>
 </body>
 </html>

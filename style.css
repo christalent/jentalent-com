@@ -329,6 +329,132 @@ footer {
 }
 footer p { margin: 0.25rem 0; }
 
+/* === Notary Log === */
+/* Restored from the inline <style> block that lived in log.html until
+   ed55dd8 ("fix(log): extract broken inline script into log.js") removed it
+   without moving the rules into this file. Do not re-add an inline <style>
+   to log.html — the log page's styles belong here. */
+
+.log-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #e8f5e9;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+.log-info-icon { font-size: 1.5rem; }
+.log-info p { margin: 0; font-size: 0.9rem; color: #2e7d32; }
+
+.log-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.search-box { flex: 1; min-width: 200px; }
+.search-box input {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+.log-buttons { display: flex; gap: 0.5rem; }
+
+.log-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.stat-box {
+  background: #f5f5f5;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+.stat-number { font-size: 2rem; font-weight: bold; color: #333; }
+.stat-label { display: block; font-size: 0.85rem; color: #666; }
+
+.log-table-container { overflow-x: auto; }
+.log-table { width: 100%; border-collapse: collapse; }
+.log-table th, .log-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+.log-table th { background: #f9f9f9; font-weight: 600; }
+.log-table tr:hover { background: #f5f5f5; }
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.btn-small {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-small:hover { background: #f0f0f0; }
+.btn-small.btn-danger { color: #c62828; border-color: #ef9a9a; }
+.btn-small.btn-danger:hover { background: #ffebee; }
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal.show { display: flex; }
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.3rem; font-weight: 600; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+.form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; }
+
+/* Keep the page behind the modal from scrolling while the dialog is open. */
+body.modal-open { overflow: hidden; }
+
+/* Visually hidden, still announced by screen readers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* === Responsive === */
 @media (max-width: 768px) {
   .nav-links { display: none; }

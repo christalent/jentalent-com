@@ -51,7 +51,7 @@
         <li><a href="resume.html">Resume</a></li>
         <li><a href="log.html" class="active">Notary Log</a></li>
       </ul>
-      <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+      <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
     </nav>
     <ul class="mobile-menu" id="mobileMenu">
       <li><a href="index.html">Home</a></li>
@@ -81,20 +81,21 @@
 
         <div class="log-controls">
           <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search by client name or document type..." onkeyup="filterEntries()">
+            <label for="searchInput" class="visually-hidden">Search log entries by client name or document type</label>
+            <input type="search" id="searchInput" placeholder="Search by client name or document type...">
           </div>
           <div class="log-buttons">
-            <button class="btn btn-primary" onclick="openAddModal()">+ Add Entry</button>
-            <button class="btn btn-outline" onclick="exportLog()">Export CSV</button>
+            <button type="button" class="btn btn-primary" id="addEntryBtn">+ Add Entry</button>
+            <button type="button" class="btn btn-outline" id="exportBtn">Export CSV</button>
           </div>
         </div>
 
         <div class="log-stats">
-          <div class="stat-box">
+          <div class="stat-box" role="status" aria-live="polite">
             <span class="stat-number" id="totalEntries">0</span>
             <span class="stat-label">Total Entries</span>
           </div>
-          <div class="stat-box">
+          <div class="stat-box" role="status" aria-live="polite">
             <span class="stat-number" id="thisMonth">0</span>
             <span class="stat-label">This Month</span>
           </div>
@@ -102,14 +103,15 @@
 
         <div class="log-table-container">
           <table class="log-table" id="logTable">
+            <caption class="visually-hidden">Notarization log entries</caption>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Client Name</th>
-                <th>Document Type</th>
-                <th>Notarization Type</th>
-                <th>Notes</th>
-                <th>Actions</th>
+                <th scope="col">Date</th>
+                <th scope="col">Client Name</th>
+                <th scope="col">Document Type</th>
+                <th scope="col">Notarization Type</th>
+                <th scope="col">Notes</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody id="logTableBody">
@@ -125,13 +127,13 @@
   </main>
 
   <!-- Add/Edit Modal -->
-  <div id="entryModal" class="modal">
+  <div id="entryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="modalTitle">Add Entry</h2>
-        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Close dialog" id="closeModalBtn">&times;</button>
       </div>
-      <form id="entryForm" onsubmit="saveEntry(event)">
+      <form id="entryForm">
         <input type="hidden" id="entryId">
         
         <div class="form-group">
@@ -185,7 +187,7 @@
         </div>
 
         <div class="form-actions">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Entry</button>
         </div>
       </form>
