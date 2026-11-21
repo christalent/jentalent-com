@@ -359,7 +359,10 @@
   function showModal() {
     lastFocusedElement = document.activeElement;
     getEl('entryModal').classList.add('show');
+    // The scroll lock has to be applied to <html> too, or the document
+    // keeps scrolling behind the fixed dialog.
     document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
     // Move focus into the dialog so keyboard and screen-reader users land on
     // the first field instead of staying on the button behind the overlay.
     const firstField = getEl('entryDate');
@@ -369,6 +372,7 @@
   function closeModal() {
     getEl('entryModal').classList.remove('show');
     document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('modal-open');
     // Return focus to whatever opened the dialog.
     if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
       lastFocusedElement.focus();

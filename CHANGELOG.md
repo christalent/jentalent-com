@@ -1,5 +1,80 @@
 # Changelog
 
+## 2026-11-21 — Fixed: the entry dialog did not scroll, and the preview box rendered as a broken image
+
+Two separate bugs, both found by Jen looking at the live site on a phone.
+
+### The dialog did not scroll
+
+The modal had `max-height: 90vh; overflow-y: auto` on its content, so it
+*could* scroll — but the page behind it scrolled instead, and the fixed
+dialog drifted away from the viewport. The Save button was unreachable.
+
+- **`body.modal-open { overflow: hidden }` never stopped the document
+  scrolling.** `overflow: hidden` on `<body>` only works when `<html>` is
+  the scrolling element; here `<html>` was, so the page scrolled and the
+  fixed overlay did not follow. The lock is now applied to `<html>` as
+  well, and `log.js` adds and removes the class on `document.documentElement`.
+- **`align-items: center` on the flex overlay clipped tall content at the
+  top** instead of letting it scroll from the start. Changed to
+  `flex-start`, with the overlay itself scrolling
+  (`overflow-y: auto`, `overscroll-behavior: contain`).
+- **The height cap now uses `dvh`** — `calc(100dvh - 2rem)` with a
+  `calc(100vh - 2rem)` fallback — so the dialog accounts for mobile
+  browser chrome as it collapses. `dvh` is the unit that tracks the
+  collapsing address bar; `vh` does not.
+- `.modal-content` keeps `margin: auto` so short dialogs stay vertically
+  centered.
+
+### The preview box rendered as a broken image
+
+This was the more subtle one, and it was a **site-wide latent bug**.
+
+- **The `[hidden]` attribute was being overridden.** The UA stylesheet's
+  `[hidden] { display: none }` has very low specificity, so
+  `.image-preview { display: flex }` beat it. The JavaScript set
+  `preview.hidden = true` and the code *believed* the box was hidden — but
+  it was rendering the whole time, with no image source, which the browser
+  draws as a broken-image icon with the alt text wrapped into a cramped
+  multi-line block. There was **no `[hidden]` rule anywhere in the
+  stylesheet**. Any hidden element with a `display` property had this bug.
+  Fixed with a global `[hidden] { display: none !important; }`, which
+  protects every hidden element now and in future.
+- **The preview `<img>` shipped with `src=""`.** An empty `src` makes the
+  browser request the current page URL and render the alt text as a
+  broken image. The attribute is now omitted entirely.
+- The preview image now carries `min-width`/`min-height` and
+  `color: transparent`, so a sourceless image collapses instead of
+  wrapping into an unreadable block.
+
+### Edge cache: stale assets after deploy
+
+The origin sits behind an edge cache (`via: e7s`) that serves static
+assets by URL and will hand back a stale stylesheet after a deploy — this
+is why the fix looked un-applied on first verification.
+
+- **The NFSHost account does not support `.htaccess` for cache headers.**
+  `mod_headers` is absent; adding an `.htaccess` with a `Header set`
+  directive produced a **500 on every CSS and JS request**. Removed
+  immediately. The account's `.htaccess` support is limited to
+  `AllowOverride`-permitted directives, which does not include
+  `mod_headers`.
+- **The version query on asset references is therefore the only lever.**
+  Every `style.css`, `main.js` and `log.js` reference across all four
+  pages now carries `?v=<version>`.
+- **`deploy.sh` bumps the version automatically**, so a deploy can never
+  ship stale-cached assets again. It also runs the syntax checks
+  (`node --check`, `php -l`) before syncing.
+
+### Tests
+
+The suite grew from 97 to **106 assertions** (65 unit + 41 live API
+integration). Nine new regression tests cover the global `[hidden]` rule,
+the absence of an empty `src` on the preview image, the modal scroll
+rules, the `dvh`/`vh` height caps, and the `<html>` scroll lock in both
+the CSS and the JavaScript.
+
+
 ## 2026-11-21 — Open items tracked as GitHub Issues
 
 No functional change. The remaining work on the notary log was written down

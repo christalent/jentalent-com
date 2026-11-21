@@ -380,7 +380,62 @@ function check(label, actual, expected) {
   check('html: the table has an Identification column', /<th scope="col">Identification<\/th>/.test(html), true);
 }
 
-// === 7. Live API integration — skipped unless API_URL is provided ==========
+// === 7. Modal layout and the [hidden] override bug ========================
+{
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const css = fs2.readFileSync(path2.join(__dirname, '..', 'style.css'), 'utf8');
+  const html2 = fs2.readFileSync(path2.join(__dirname, '..', 'log.html'), 'utf8');
+
+  // The UA stylesheet's [hidden] { display: none } loses to any class that
+  // sets a display property, so .image-preview stayed visible while the
+  // code believed it was hidden. A global [hidden] rule fixes it.
+  check(
+    'css: a global [hidden] rule exists',
+    /\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
+    true
+  );
+
+  // The preview img must not ship with an empty src: an empty src makes the
+  // browser request the current page and render a broken image.
+  check(
+    'html: the preview img has no empty src attribute',
+    /id="imagePreviewImg"[^>]*\ssrc="/.test(html2),
+    false
+  );
+
+  // The modal must scroll rather than clip its content.
+  check('css: the modal overlay scrolls', /\.modal\s*\{[^}]*overflow-y:\s*auto/.test(css), true);
+  check(
+    'css: the modal content is height-capped',
+    /\.modal-content\s*\{[^}]*max-height:\s*calc\(100dvh/.test(css),
+    true
+  );
+  check(
+    'css: the modal content caps at a viewport-relative height',
+    /\.modal-content\s*\{[^}]*max-height:\s*calc\(100vh/.test(css),
+    true
+  );
+
+  // The page behind the dialog must be locked on <html> as well as <body>;
+  // overflow:hidden on <body> alone does not stop the document scrolling.
+  check('css: html gets the modal scroll lock', /html\.modal-open/.test(css), true);
+  check('css: body gets the modal scroll lock', /body\.modal-open/.test(css), true);
+
+  const js2 = fs2.readFileSync(path2.join(__dirname, '..', 'log.js'), 'utf8');
+  check(
+    'js: the modal scroll lock is applied to documentElement',
+    /document\.documentElement\.classList\.add\('modal-open'\)/.test(js2),
+    true
+  );
+  check(
+    'js: the modal scroll lock is removed from documentElement',
+    /document\.documentElement\.classList\.remove\('modal-open'\)/.test(js2),
+    true
+  );
+}
+
+// === 8. Live API integration — skipped unless API_URL is provided ==========
 (async () => {
   const API_URL = process.env.API_URL;
   const API_PIN = process.env.API_PIN;

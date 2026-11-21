@@ -409,8 +409,15 @@ footer p { margin: 0.25rem 0; }
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.5);
   z-index: 1000;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  /* The overlay scrolls when the dialog is taller than the viewport. The
+     inner content is capped below so short dialogs stay centred. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 .modal.show { display: flex; }
 .modal-content {
@@ -418,9 +425,14 @@ footer p { margin: 0.25rem 0; }
   padding: 2rem;
   border-radius: 12px;
   max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
+  width: 100%;
+  /* dvh tracks the mobile browser chrome as it collapses; vh is the
+     fallback for browsers without dvh. */
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: auto;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
@@ -437,8 +449,18 @@ footer p { margin: 0.25rem 0; }
 }
 .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; flex-wrap: wrap; }
 
-/* Keep the page behind the modal from scrolling while the dialog is open. */
+/* Keep the page behind the modal from scrolling while the dialog is open.
+   The lock has to be on <html> as well: overflow:hidden on <body> alone
+   does not stop the document scrolling when <html> is the scrolling
+   element, so the fixed dialog and the page drift apart. */
 body.modal-open { overflow: hidden; }
+html.modal-open { overflow: hidden; }
+
+/* The UA stylesheet's [hidden] { display: none } has very low specificity,
+   so any class that sets a display property (e.g. .image-preview) beats it
+   and the element stays visible while the code thinks it is hidden. This
+   rule restores the intended behaviour for every hidden element. */
+[hidden] { display: none !important; }
 
 /* Visually hidden, still announced by screen readers. */
 .visually-hidden {
@@ -566,6 +588,12 @@ input[type="file"] {
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
+  /* An image with no source renders as alt text inside a box this size,
+     which wraps into an unreadable block. Collapse it instead. */
+  min-width: 140px;
+  min-height: 90px;
+  color: transparent;
+  font-size: 0;
 }
 .image-preview span { font-size: 0.85rem; color: #444; }
 
