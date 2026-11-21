@@ -1,81 +1,146 @@
-// log.js — Notary log (localStorage-backed)
-// All entries are stored client-side only. Nothing is sent to any server.
+// log.js — Notary log (server-backed)
+//
+// Entries live in a server-side database, not in the browser. The log is
+// protected by a PIN that is verified server-side; the PIN itself is never
+// present in this file or in any response from the server.
+//
+// Every user-supplied field is rendered with textContent (never innerHTML),
+// so the XSS surface stays closed.
 
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'notaryLogEntries';
-  const entries = loadEntries();
+  const API = 'api.php';
+  let authenticated = false;
+  let entries = [];
 
-  // ---------- Storage ----------
+  // ---------- API helpers ----------
 
-  function loadEntries() {
+  async function api(action, options = {}) {
+    const opts = {
+      method: options.method || 'GET',
+      credentials: 'same-origin',
+      headers: {},
+    };
+    if (options.body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(options.body);
+    }
+    const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
+    let data = null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(parsed)) return [];
-      // Drop anything that is not a usable record so a corrupt or hand-edited
-      // store cannot break rendering for every row.
-      return parsed.filter(isEntryShape).map(normalizeEntry);
+      data = await res.json();
     } catch (err) {
-      console.warn('notary log: failed to parse stored entries, resetting', err);
-      return [];
+      data = { ok: false, error: 'The server returned an unreadable response.' };
+    }
+    if (!res.ok) {
+      const error = new Error(data && data.error ? data.error : 'Request failed.');
+      error.status = res.status;
+      error.expired = res.status === 401;
+      throw error;
+    }
+    return data;
+  }
+
+  // ---------- DOM helpers ----------
+
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
+  function setText(id, value) {
+    const el = getEl(id);
+    if (el) el.textContent = String(value);
+  }
+
+  function clearChildren(el) {
+    while (el && el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  function show(el, visible) {
+    if (el) el.hidden = !visible;
+  }
+
+  // ---------- PIN gate ----------
+
+  async function checkSession() {
+    try {
+      const data = await api('status');
+      authenticated = !!data.authenticated;
+    } catch (err) {
+      authenticated = false;
+    }
+    return authenticated;
+  }
+
+  async function doLogin(pin) {
+    const data = await api('login', { method: 'POST', body: { pin } });
+    authenticated = true;
+    return data;
+  }
+
+  async function doLogout() {
+    try {
+      await api('logout', { method: 'POST', body: {} });
+    } catch (err) {
+      // Even if the server call fails, drop the local session state.
+    }
+    authenticated = false;
+    entries = [];
+    renderEntries();
+    showPinGate();
+  }
+
+  function showPinGate() {
+    show(getEl('pinGate'), true);
+    show(getEl('logContent'), false);
+    const pinInput = getEl('pinInput');
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.focus();
     }
   }
 
-  function isEntryShape(value) {
-    return (
-      value !== null &&
-      typeof value === 'object' &&
-      typeof value.date === 'string' &&
-      typeof value.clientName === 'string'
-    );
+  function showLogContent() {
+    show(getEl('pinGate'), false);
+    show(getEl('logContent'), true);
   }
 
-  function normalizeEntry(entry) {
-    return {
-      date: entry.date,
-      clientName: entry.clientName,
-      documentType: typeof entry.documentType === 'string' ? entry.documentType : '',
-      notarizationType:
-        typeof entry.notarizationType === 'string' ? entry.notarizationType : '',
-      notes: typeof entry.notes === 'string' ? entry.notes : '',
-    };
-  }
-
-  function saveEntries() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-      return true;
-    } catch (err) {
-      // Quota exceeded, private-mode restrictions, etc. Surface it instead of
-      // silently losing the record the notary just typed.
-      console.error('notary log: could not save entries', err);
-      alert(
-        'Could not save this entry to local storage. It may be full, or ' +
-          'private browsing may be blocking storage. Your entry was not saved.'
-      );
-      return false;
+  function showPinError(message) {
+    const box = getEl('pinError');
+    if (box) {
+      box.textContent = message || '';
+      box.hidden = !message;
     }
   }
 
   // ---------- Dates ----------
 
-  // A bare "YYYY-MM-DD" string is parsed by Date as UTC midnight, which is the
-  // previous day in the Americas. Parse dates as local time instead.
+  // A bare "YYYY-MM-DD" string is parsed by Date as UTC midnight, which is
+  // the previous day in the Americas. Parse dates as local time instead.
   function parseLocalDate(value) {
     if (!value) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       const [y, m, d] = value.split('-').map(Number);
       const date = new Date(y, m - 1, d);
-      return Number.isNaN(date.getTime()) ? null : date;
+      if (Number.isNaN(date.getTime())) return null;
+      // new Date(2026, 1, 30) silently rolls over to March 2. Round-trip the
+      // components so an impossible date is rejected instead of displayed as
+      // a different day.
+      if (
+        date.getFullYear() !== y ||
+        date.getMonth() !== m - 1 ||
+        date.getDate() !== d
+      ) {
+        return null;
+      }
+      return date;
     }
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   function formatDate(isoDate) {
-    // Display as "Sep 30, 2026" to match the previous local format.
     if (!isoDate) return '';
     const d = parseLocalDate(isoDate);
     if (!d) return isoDate;
@@ -95,24 +160,7 @@
     return `${y}-${m}-${d}`;
   }
 
-  // ---------- DOM helpers ----------
-
-  function getEl(id) {
-    return document.getElementById(id);
-  }
-
-  function setText(id, value) {
-    const el = getEl(id);
-    if (el) el.textContent = String(value);
-  }
-
-  function clearChildren(el) {
-    while (el && el.firstChild) el.removeChild(el.firstChild);
-  }
-
   // ---------- Rendering ----------
-  // Uses textContent (not innerHTML) for every user-supplied field — keeps
-  // the XSS surface closed.
 
   function makeCell(text) {
     const td = document.createElement('td');
@@ -120,22 +168,28 @@
     return td;
   }
 
-  function makeActionsCell(index) {
+  function makeActionsCell(entry) {
     const td = document.createElement('td');
+
+    // The accessible name has to identify the row, otherwise a screen reader
+    // announces a flat list of identical "Edit entry" buttons.
+    const label = entry.clientName ? ' for ' + entry.clientName : '';
 
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'btn-small';
     editBtn.textContent = 'Edit';
-    editBtn.setAttribute('aria-label', 'Edit entry');
-    editBtn.addEventListener('click', () => editEntry(index));
+    editBtn.setAttribute('aria-label', 'Edit entry' + label);
+    editBtn.dataset.entryId = entry.id;
+    editBtn.addEventListener('click', () => editEntry(entry.id));
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'btn-small btn-danger';
     delBtn.textContent = 'Delete';
-    delBtn.setAttribute('aria-label', 'Delete entry');
-    delBtn.addEventListener('click', () => deleteEntry(index));
+    delBtn.setAttribute('aria-label', 'Delete entry' + label);
+    delBtn.dataset.entryId = entry.id;
+    delBtn.addEventListener('click', () => deleteEntry(entry.id));
 
     td.appendChild(editBtn);
     td.appendChild(document.createTextNode(' '));
@@ -152,6 +206,22 @@
       const tb = db ? db.getTime() : 0;
       return tb - ta;
     });
+  }
+
+  // "Other" shows what was actually typed in the description box.
+  function documentTypeLabel(entry) {
+    if (entry.documentType === 'Other' && entry.documentTypeOther) {
+      return 'Other — ' + entry.documentTypeOther;
+    }
+    return entry.documentType || '';
+  }
+
+  // The identification type and its number/details in a single cell.
+  function identificationLabel(entry) {
+    const type = entry.identificationType || '';
+    const number = entry.identificationNumber || '';
+    if (type && number) return type + ' — ' + number;
+    return type || number || '';
   }
 
   function renderEntries() {
@@ -171,14 +241,14 @@
     emptyState.style.display = 'none';
 
     sortedEntries().forEach((entry) => {
-      const realIndex = entries.indexOf(entry);
       const tr = document.createElement('tr');
       tr.appendChild(makeCell(formatDate(entry.date)));
       tr.appendChild(makeCell(entry.clientName || ''));
-      tr.appendChild(makeCell(entry.documentType || ''));
+      tr.appendChild(makeCell(documentTypeLabel(entry)));
       tr.appendChild(makeCell(entry.notarizationType || ''));
       tr.appendChild(makeCell(entry.notes || '—'));
-      tr.appendChild(makeActionsCell(realIndex));
+      tr.appendChild(makeCell(identificationLabel(entry)));
+      tr.appendChild(makeActionsCell(entry));
       tbody.appendChild(tr);
     });
 
@@ -197,6 +267,20 @@
 
     // Re-apply the active search so the filter survives a re-render.
     filterEntries();
+  }
+
+  // Move focus back to the row the user was working on.
+  function restoreFocusToEntry(entryId) {
+    if (!entryId) return;
+    const tbody = getEl('logTableBody');
+    if (!tbody) return;
+    const buttons = tbody.querySelectorAll('button[data-entry-id]');
+    for (const btn of buttons) {
+      if (btn.dataset.entryId === entryId) {
+        btn.focus();
+        return;
+      }
+    }
   }
 
   // ---------- Filtering ----------
@@ -224,26 +308,61 @@
     setText('modalTitle', 'Add Entry');
     const form = getEl('entryForm');
     if (form) form.reset();
-    getEl('entryId').value = '';
-    getEl('entryDate').value = todayLocalISO();
+    const idEl = getEl('entryId');
+    if (idEl) idEl.value = '';
+    const dateEl = getEl('entryDate');
+    if (dateEl) {
+      dateEl.value = todayLocalISO();
+      dateEl.max = todayLocalISO();
+    }
+    const notesEl = getEl('notes');
+    if (notesEl) notesEl.value = '';
+    const otherEl = getEl('documentTypeOther');
+    if (otherEl) otherEl.value = '';
+    const idTypeEl = getEl('identificationType');
+    if (idTypeEl) idTypeEl.value = '';
+    const idNumEl = getEl('identificationNumber');
+    if (idNumEl) idNumEl.value = '';
+    toggleOtherField();
+    clearImagePreview();
     showModal();
   }
 
-  function openEditModal(entry, index) {
+  function openEditModal(entry) {
     setText('modalTitle', 'Edit Entry');
-    getEl('entryId').value = String(index);
-    getEl('entryDate').value = entry.date || '';
-    getEl('clientName').value = entry.clientName || '';
-    getEl('documentType').value = entry.documentType || '';
-    getEl('notarizationType').value = entry.notarizationType || '';
-    getEl('notes').value = entry.notes || '';
+    const idEl = getEl('entryId');
+    if (idEl) idEl.value = entry.id;
+    const dateEl = getEl('entryDate');
+    if (dateEl) {
+      dateEl.value = entry.date || '';
+      dateEl.max = todayLocalISO();
+    }
+    const clientEl = getEl('clientName');
+    if (clientEl) clientEl.value = entry.clientName || '';
+    const docEl = getEl('documentType');
+    if (docEl) docEl.value = entry.documentType || '';
+    const otherEl = getEl('documentTypeOther');
+    if (otherEl) otherEl.value = entry.documentTypeOther || '';
+    const notEl = getEl('notarizationType');
+    if (notEl) notEl.value = entry.notarizationType || '';
+    const notesEl = getEl('notes');
+    if (notesEl) notesEl.value = entry.notes || '';
+    const idTypeEl = getEl('identificationType');
+    if (idTypeEl) idTypeEl.value = entry.identificationType || '';
+    const idNumEl = getEl('identificationNumber');
+    if (idNumEl) idNumEl.value = entry.identificationNumber || '';
+    toggleOtherField();
+    showImagePreview(entry);
     showModal();
   }
 
   function showModal() {
     lastFocusedElement = document.activeElement;
     getEl('entryModal').classList.add('show');
+    // The scroll lock has to be applied to <html> too, or the document
+    // keeps scrolling behind the fixed dialog.
     document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
     // Move focus into the dialog so keyboard and screen-reader users land on
     // the first field instead of staying on the button behind the overlay.
     const firstField = getEl('entryDate');
@@ -253,6 +372,7 @@
   function closeModal() {
     getEl('entryModal').classList.remove('show');
     document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('modal-open');
     // Return focus to whatever opened the dialog.
     if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
       lastFocusedElement.focus();
@@ -286,81 +406,286 @@
     }
   }
 
-  function saveEntry(event) {
+  // ---------- "Other" document type ----------
+
+  // Show the description box only when "Other" is selected.
+  function toggleOtherField() {
+    const select = getEl('documentType');
+    const group = getEl('otherTypeGroup');
+    const input = getEl('documentTypeOther');
+    if (!select || !group) return;
+    const isOther = select.value === 'Other';
+    group.hidden = !isOther;
+    if (input) {
+      input.required = isOther;
+      if (!isOther) input.value = '';
+    }
+  }
+
+  // ---------- Image attachment ----------
+
+  let pendingImageFile = null;
+
+  function clearImagePreview() {
+    pendingImageFile = null;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    const fileInput = getEl('entryImage');
+    if (fileInput) fileInput.value = '';
+    if (preview) preview.hidden = true;
+    if (img) img.removeAttribute('src');
+    if (label) label.textContent = '';
+  }
+
+  function showImagePreview(entry) {
+    pendingImageFile = null;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    const fileInput = getEl('entryImage');
+    if (fileInput) fileInput.value = '';
+
+    if (!entry || !entry.hasImage) {
+      if (preview) preview.hidden = true;
+      if (img) img.removeAttribute('src');
+      if (label) label.textContent = '';
+      return;
+    }
+    if (preview) preview.hidden = false;
+    if (img) img.src = `${API}?action=image&id=${encodeURIComponent(entry.id)}`;
+    if (label) label.textContent = 'Image attached';
+  }
+
+  function handleImageSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      showFormError('The image must be smaller than 8 MB.', 'entryImage');
+      event.target.value = '';
+      return;
+    }
+    pendingImageFile = file;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    if (preview) preview.hidden = false;
+    if (img) img.src = URL.createObjectURL(file);
+    if (label) label.textContent = file.name;
+  }
+
+  async function uploadImage(entryId) {
+    if (!pendingImageFile) return null;
+    const form = new FormData();
+    form.append('image', pendingImageFile);
+    form.append('id', entryId);
+    const res = await fetch(`${API}?action=upload`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'The image could not be uploaded.');
+    }
+    pendingImageFile = null;
+    return data;
+  }
+
+  // ---------- Saving ----------
+
+  function showFormError(message, fieldId) {
+    const box = getEl('formError');
+    if (box) {
+      box.textContent = message;
+      box.hidden = !message;
+    }
+    if (fieldId) {
+      const field = getEl(fieldId);
+      if (field && typeof field.focus === 'function') field.focus();
+    }
+  }
+
+  function clearFormError() {
+    const box = getEl('formError');
+    if (box) {
+      box.textContent = '';
+      box.hidden = true;
+    }
+  }
+
+  async function saveEntry(event) {
     event.preventDefault();
-    const idVal = getEl('entryId').value;
+    clearFormError();
+
+    const idEl = getEl('entryId');
+    const dateEl = getEl('entryDate');
+    const clientEl = getEl('clientName');
+    const docEl = getEl('documentType');
+    const otherEl = getEl('documentTypeOther');
+    const notEl = getEl('notarizationType');
+    const notesEl = getEl('notes');
+    const idTypeEl = getEl('identificationType');
+    const idNumEl = getEl('identificationNumber');
+    if (!idEl || !dateEl || !clientEl || !docEl || !notEl || !notesEl) return;
+
     const record = {
-      date: getEl('entryDate').value,
-      clientName: getEl('clientName').value.trim(),
-      documentType: getEl('documentType').value,
-      notarizationType: getEl('notarizationType').value,
-      notes: getEl('notes').value.trim(),
+      id: idEl.value || '',
+      date: dateEl.value,
+      clientName: clientEl.value.trim(),
+      documentType: docEl.value,
+      documentTypeOther: otherEl ? otherEl.value.trim() : '',
+      notarizationType: notEl.value,
+      notes: notesEl.value.trim(),
+      identificationType: idTypeEl ? idTypeEl.value : '',
+      identificationNumber: idNumEl ? idNumEl.value.trim() : '',
     };
 
-    if (!record.date || !record.clientName || !record.documentType || !record.notarizationType) {
-      return; // HTML required attributes should have caught this already.
+    if (!record.date) {
+      showFormError('A date is required.', 'entryDate');
+      return;
     }
-
-    let replacedIndex = -1;
-    let previousRecord = null;
-
-    if (idVal === '') {
-      entries.push(record);
-    } else {
-      const idx = Number(idVal);
-      if (Number.isInteger(idx) && idx >= 0 && idx < entries.length) {
-        replacedIndex = idx;
-        previousRecord = entries[idx];
-        entries[idx] = record;
-      } else {
-        entries.push(record);
-      }
+    if (!record.clientName) {
+      showFormError('A client name is required.', 'clientName');
+      return;
     }
-
-    if (!saveEntries()) {
-      // Roll back the in-memory change so the UI and storage stay in sync.
-      if (replacedIndex >= 0) {
-        entries[replacedIndex] = previousRecord;
-      } else {
-        entries.pop();
-      }
+    if (!record.documentType) {
+      showFormError('Select a document type.', 'documentType');
+      return;
+    }
+    if (record.documentType === 'Other' && !record.documentTypeOther) {
+      showFormError('Describe the document type.', 'documentTypeOther');
+      return;
+    }
+    if (!record.notarizationType) {
+      showFormError('Select a notarization type.', 'notarizationType');
+      return;
+    }
+    if (record.identificationNumber && !record.identificationType) {
+      showFormError('Select an identification type.', 'identificationType');
       return;
     }
 
-    renderEntries();
-    closeModal();
-  }
+    const saveBtn = getEl('saveEntryBtn');
+    if (saveBtn) saveBtn.disabled = true;
 
-  function editEntry(index) {
-    if (index >= 0 && index < entries.length) {
-      openEditModal(entries[index], index);
+    try {
+      const data = await api('save', { method: 'POST', body: { entry: record } });
+      const saved = data.entry;
+
+      // Attach a newly chosen image to the saved entry.
+      if (pendingImageFile && saved && saved.id) {
+        await uploadImage(saved.id);
+        saved.hasImage = true;
+      }
+
+      const idx = entries.findIndex((e) => e.id === saved.id);
+      if (idx >= 0) {
+        entries[idx] = saved;
+      } else {
+        entries.push(saved);
+      }
+
+      renderEntries();
+      closeModal();
+      restoreFocusToEntry(saved.id);
+    } catch (err) {
+      if (err.expired) {
+        await handleSessionExpired();
+        return;
+      }
+      showFormError(err.message || 'The entry could not be saved.');
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
     }
   }
 
-  function deleteEntry(index) {
-    if (index < 0 || index >= entries.length) return;
-    const entry = entries[index];
+  function findEntryById(id) {
+    return entries.find((e) => e.id === id) || null;
+  }
+
+  function editEntry(id) {
+    const entry = findEntryById(id);
+    if (entry) openEditModal(entry);
+  }
+
+  async function deleteEntry(id) {
+    const entry = findEntryById(id);
+    if (!entry) return;
     const label = entry.clientName ? `"${entry.clientName}"` : 'this entry';
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
-    entries.splice(index, 1);
-    if (!saveEntries()) {
-      entries.splice(index, 0, entry);
-      return;
+    try {
+      await api('delete', { method: 'POST', body: { id } });
+      entries = entries.filter((e) => e.id !== id);
+      renderEntries();
+      const tbody = getEl('logTableBody');
+      const nextBtn = tbody && tbody.querySelector('button[data-entry-id]');
+      if (nextBtn && typeof nextBtn.focus === 'function') nextBtn.focus();
+    } catch (err) {
+      if (err.expired) {
+        await handleSessionExpired();
+        return;
+      }
+      alert(err.message || 'The entry could not be deleted.');
     }
-    renderEntries();
   }
 
-  // ---------- Export ----------
+  async function handleSessionExpired() {
+    authenticated = false;
+    entries = [];
+    renderEntries();
+    showPinGate();
+    showPinError('Your session expired. Enter the PIN to continue.');
+  }
+
+  // ---------- Load ----------
+
+  async function loadEntries() {
+    try {
+      const data = await api('list');
+      entries = Array.isArray(data.entries) ? data.entries : [];
+      renderEntries();
+    } catch (err) {
+      if (err.expired) {
+        await handleSessionExpired();
+        return;
+      }
+      alert(err.message || 'The log could not be loaded.');
+    }
+  }
+
+  // ---------- CSV export ----------
 
   // Neutralise spreadsheet formula injection: a cell starting with = + - @
-  // (or a leading tab/CR) is executed by Excel/Sheets when the CSV is opened.
+  // (or a leading tab/CR/LF) is executed by Excel/Sheets when the CSV is
+  // opened. Leading whitespace is stripped first — a spreadsheet that trims
+  // " =1+1" would otherwise evaluate it as a formula.
   function csvEscape(value) {
     const s = value === null || value === undefined ? '' : String(value);
-    const guarded = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
-    if (/[",\n\r]/.test(guarded)) {
-      return '"' + guarded.replace(/"/g, '""') + '"';
+    // Check the ORIGINAL first characters for a formula trigger. A leading
+    // tab, CR or LF is itself in the trigger set, so stripping whitespace
+    // before the check would hide it. Only a run of spaces/nbsp/BOM is
+    // safe to drop, and only after the trigger check has passed.
+    if (/^[=+\-@\t\r\n]/.test(s)) {
+      const guarded = "'" + s;
+      return /[",\n\r]/.test(guarded)
+        ? '"' + guarded.replace(/"/g, '""') + '"'
+        : guarded;
     }
-    return guarded;
+    // No trigger on the first character. But a spreadsheet may trim
+    // leading spaces and then evaluate what is left, so a cell that
+    // starts with spaces then "=" is still a formula.
+    const trimmed = s.replace(/^[  ﻿]+/, '');
+    if (trimmed !== s && /^[=+\-@]/.test(trimmed)) {
+      const guarded = "'" + trimmed;
+      return /[",\n\r]/.test(guarded)
+        ? '"' + guarded.replace(/"/g, '""') + '"'
+        : guarded;
+    }
+    if (/[",\n\r]/.test(s)) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
   }
 
   function exportLog() {
@@ -368,21 +693,32 @@
       alert('No entries to export.');
       return;
     }
-    const headers = ['Date', 'Client Name', 'Document Type', 'Notarization Type', 'Notes'];
-    // Export in the same order the table displays (newest first).
+    const headers = [
+      'Date',
+      'Client Name',
+      'Document Type',
+      'Notarization Type',
+      'Notes',
+      'Identification Type',
+      'Identification Number',
+    ];
     const rows = sortedEntries().map((e) => [
       e.date,
       e.clientName || '',
-      e.documentType || '',
+      documentTypeLabel(e),
       e.notarizationType || '',
       e.notes || '',
+      e.identificationType || '',
+      e.identificationNumber || '',
     ]);
     const csv =
       [headers, ...rows]
         .map((r) => r.map(csvEscape).join(','))
         .join('\r\n') + '\r\n';
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    // The BOM makes Excel read UTF-8 correctly instead of rendering
+    // "JosÃ©" for a client named "José".
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -390,7 +726,8 @@
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Revoking in the same tick can cancel the download in Firefox/Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ---------- Wire-up ----------
@@ -428,6 +765,44 @@
     const search = getEl('searchInput');
     if (search) search.addEventListener('input', filterEntries);
 
+    const docSelect = getEl('documentType');
+    if (docSelect) docSelect.addEventListener('change', toggleOtherField);
+
+    const imageInput = getEl('entryImage');
+    if (imageInput) imageInput.addEventListener('change', handleImageSelected);
+
+    const pinForm = getEl('pinForm');
+    if (pinForm) {
+      pinForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        showPinError('');
+        const input = getEl('pinInput');
+        const pin = input ? input.value : '';
+        const button = getEl('pinSubmitBtn');
+        if (button) button.disabled = true;
+        try {
+          await doLogin(pin);
+          showLogContent();
+          await loadEntries();
+        } catch (err) {
+          showPinError(err.message || 'Incorrect PIN.');
+          if (input) {
+            input.value = '';
+            input.focus();
+          }
+        } finally {
+          if (button) button.disabled = false;
+        }
+      });
+    }
+
+    const logoutBtn = getEl('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        await doLogout();
+      });
+    }
+
     renderEntries();
   }
 
@@ -436,4 +811,15 @@
   } else {
     init();
   }
+
+  // Resume an existing session, or show the PIN gate.
+  (async () => {
+    const ok = await checkSession();
+    if (ok) {
+      showLogContent();
+      await loadEntries();
+    } else {
+      showPinGate();
+    }
+  })();
 })();

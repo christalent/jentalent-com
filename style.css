@@ -29,8 +29,6 @@ p { margin-bottom: 1rem; }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-.link-inline { text-decoration: underline; }
-
 /* === Layout === */
 .container {
   max-width: 1100px;
@@ -77,7 +75,7 @@ nav {
   border-radius: var(--radius);
   color: var(--text);
   font-weight: 500;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s;
 }
 
 .nav-links a:hover { background: var(--bg-alt); text-decoration: none; }
@@ -92,6 +90,8 @@ nav {
   padding: 0.5rem;
 }
 
+.mobile-menu-nav { display: block; }
+
 .mobile-menu {
   display: none;
   list-style: none;
@@ -100,7 +100,13 @@ nav {
   padding: 0.5rem 1.5rem;
 }
 
-.mobile-menu.show { display: block; }
+/* With JS, the menu is controlled by the toggle button and starts closed.
+   Without JS, the menu is a plain list of links and is always visible, so
+   a mobile visitor with scripting disabled still has navigation. */
+.js .mobile-menu { display: none; }
+.js .mobile-menu.show { display: block; }
+.no-js .mobile-menu { display: block; }
+.no-js .mobile-menu-btn { display: none !important; }
 .mobile-menu a {
   display: block;
   padding: 0.75rem 0;
@@ -142,7 +148,8 @@ nav {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  font-family: inherit;
+  transition: color 0.2s, background-color 0.2s, transform 0.2s, box-shadow 0.2s;
   border: 2px solid transparent;
 }
 
@@ -270,21 +277,14 @@ nav {
 .resume-section { margin-bottom: 2.5rem; }
 .resume-section h3 { color: var(--primary); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 
-.credential-card {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--bg-alt);
-  border-radius: var(--radius);
-  margin-bottom: 1rem;
-}
-.credential-icon { font-size: 1.8rem; }
-.credential-card h4 { margin-bottom: 0.25rem; }
-.credential-detail { color: var(--text-light); margin: 0.25rem 0; font-size: 0.95rem; }
-.credential-meta { font-size: 0.85rem; color: #888; margin: 0; }
+/* NOTE: the credential-card / credential-icon / credential-detail /
+   credential-meta / edu-block / membership-list / resume-note rules that
+   used to live here had no matching markup in any page. They were removed
+   on 2026-11-21. If the credential cards come back, use var(--text-light)
+   (#666, 5.45:1 on white) rather than #888, which failed WCAG AA at 3.54:1. */
 
-.exp-block, .edu-block { margin-bottom: 1.5rem; }
-.exp-block h4, .edu-block h4 { margin-bottom: 0.25rem; }
+.exp-block { margin-bottom: 1.5rem; }
+.exp-block h4 { margin-bottom: 0.25rem; }
 .exp-date, .exp-block + p { font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem; }
 .exp-block ul { margin-left: 1.5rem; font-size: 0.95rem; }
 .exp-block li { margin-bottom: 0.25rem; }
@@ -298,12 +298,6 @@ nav {
   font-size: 0.9rem;
   font-weight: 500;
 }
-
-.membership-list { margin-left: 1.5rem; }
-.membership-list li { margin-bottom: 0.5rem; }
-
-.resume-note { font-size: 0.9rem; color: var(--text-light); margin-top: 0.5rem; }
-.resume-note:before { content: "💡 "; }
 
 /* === Contact Cards === */
 .contact-intro { margin-bottom: 1.5rem; }
@@ -360,14 +354,17 @@ footer p { margin: 0.25rem 0; }
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 1rem;
+  font-family: inherit;
 }
-.log-buttons { display: flex; gap: 0.5rem; }
+.log-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 .log-stats {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
+.stat-box { flex: 1 1 140px; min-width: 0; }
 .stat-box {
   background: #f5f5f5;
   padding: 1rem 1.5rem;
@@ -400,6 +397,7 @@ footer p { margin: 0.25rem 0; }
   background: white;
   border-radius: 4px;
   cursor: pointer;
+  font-family: inherit;
 }
 .btn-small:hover { background: #f0f0f0; }
 .btn-small.btn-danger { color: #c62828; border-color: #ef9a9a; }
@@ -411,8 +409,15 @@ footer p { margin: 0.25rem 0; }
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.5);
   z-index: 1000;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  /* The overlay scrolls when the dialog is taller than the viewport. The
+     inner content is capped below so short dialogs stay centred. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 .modal.show { display: flex; }
 .modal-content {
@@ -420,9 +425,14 @@ footer p { margin: 0.25rem 0; }
   padding: 2rem;
   border-radius: 12px;
   max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
+  width: 100%;
+  /* dvh tracks the mobile browser chrome as it collapses; vh is the
+     fallback for browsers without dvh. */
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: auto;
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
@@ -435,11 +445,22 @@ footer p { margin: 0.25rem 0; }
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 1rem;
+  font-family: inherit;
 }
-.form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; }
+.form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; flex-wrap: wrap; }
 
-/* Keep the page behind the modal from scrolling while the dialog is open. */
+/* Keep the page behind the modal from scrolling while the dialog is open.
+   The lock has to be on <html> as well: overflow:hidden on <body> alone
+   does not stop the document scrolling when <html> is the scrolling
+   element, so the fixed dialog and the page drift apart. */
 body.modal-open { overflow: hidden; }
+html.modal-open { overflow: hidden; }
+
+/* The UA stylesheet's [hidden] { display: none } has very low specificity,
+   so any class that sets a display property (e.g. .image-preview) beats it
+   and the element stays visible while the code thinks it is hidden. This
+   rule restores the intended behaviour for every hidden element. */
+[hidden] { display: none !important; }
 
 /* Visually hidden, still announced by screen readers. */
 .visually-hidden {
@@ -455,14 +476,175 @@ body.modal-open { overflow: hidden; }
   border: 0;
 }
 
-/* === Responsive === */
+/* === Accessibility === */
+
+/* The stylesheet had no :focus rules at all, so focus indication was
+   whatever the UA default happened to be. Several controls set
+   border:none / background:none, which left them with almost nothing. */
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* One combined live region instead of two competing stat boxes. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* === Notary Log components === */
+
+.corrupt-banner {
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background: #fff3e0;
+  border: 1px solid #ffb74d;
+  border-left: 4px solid #ef6c00;
+  border-radius: var(--radius);
+}
+.corrupt-banner strong { color: #8c3d00; }
+.corrupt-banner p { margin: 0.25rem 0 0; font-size: 0.9rem; color: #6b3200; }
+
+.form-error {
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  background: #ffebee;
+  border: 1px solid #ef9a9a;
+  border-radius: 6px;
+  color: #b71c1c;
+  font-size: 0.9rem;
+}
+
+.btn-danger-text { color: #c62828; }
+.btn-danger-text:hover {
+  background: #ffebee;
+  border-color: #c62828;
+  color: #8e0000;
+}
+
+/* === PIN gate === */
+
+.pin-form {
+  max-width: 26rem;
+  padding: 1.5rem;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: var(--radius, 8px);
+}
+
+.pin-form .form-group { margin-bottom: 1rem; }
+.pin-form .form-group label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+.pin-form input[type="password"] {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+.pin-form .form-actions { margin-bottom: 0; }
+
+/* === Image attachment === */
+
+.form-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: #fafafa;
+  border: 1px dashed var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  background: #fafafa;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+.image-preview img {
+  max-width: 140px;
+  max-height: 90px;
+  object-fit: contain;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  /* An image with no source renders as alt text inside a box this size,
+     which wraps into an unreadable block. Collapse it instead. */
+  min-width: 140px;
+  min-height: 90px;
+  color: transparent;
+  font-size: 0;
+}
+.image-preview span { font-size: 0.85rem; color: #444; }
+
+/* === Print === */
+/* Printing the log is a plausible notarial workflow — strip the chrome
+   so what comes out of the printer is the table, not the website. */
+@media print {
+  header,
+  footer,
+  .page-header,
+  .log-controls,
+  .log-info,
+  .corrupt-banner,
+  .form-actions,
+  #entryModal,
+  .search-box,
+  .modal {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  .section { padding: 0; }
+  .container { max-width: none; padding: 0; }
+  .log-table-container { overflow-x: visible; }
+  .log-table th, .log-table td { padding: 0.25rem 0.4rem; }
+  .log-table tr { page-break-inside: avoid; }
+  .stat-box { border: 1px solid #999; }
+
+  /* Keep the action column from printing as an empty column. */
+  .log-table th:last-child,
+  .log-table td:last-child { display: none; }
+
+  a[href]::after { content: ""; }
+}
+
 @media (max-width: 768px) {
   .nav-links { display: none; }
   .mobile-menu-btn { display: block; }
-  
+
+  /* Without JS there is no toggle button, so the link list must show. */
+  .no-js .mobile-menu-btn { display: none; }
+  .no-js .mobile-menu { display: block; }
+
   .hero h1 { font-size: 2.2rem; }
   .hero { padding: 3rem 0; }
-  
+
   .about-grid { grid-template-columns: 1fr; }
   .services-preview { grid-template-columns: repeat(2, 1fr); }
   .services-grid { grid-template-columns: 1fr; }

@@ -4,6 +4,14 @@
 (function () {
   'use strict';
 
+  function closeMobileMenu() {
+    const menu = document.getElementById('mobileMenu');
+    if (!menu) return;
+    menu.classList.remove('show');
+    const button = document.querySelector('.mobile-menu-btn');
+    if (button) button.setAttribute('aria-expanded', 'false');
+  }
+
   function toggleMobileMenu() {
     const menu = document.getElementById('mobileMenu');
     if (!menu) return;
@@ -23,47 +31,42 @@
 
     // Close the menu after choosing a destination.
     menu.querySelectorAll('a').forEach((link) => {
-      link.addEventListener('click', () => {
-        menu.classList.remove('show');
-        const button = document.querySelector('.mobile-menu-btn');
-        if (button) button.setAttribute('aria-expanded', 'false');
-      });
+      link.addEventListener('click', closeMobileMenu);
     });
 
     // Close on Escape.
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && menu.classList.contains('show')) {
-        menu.classList.remove('show');
-        const button = document.querySelector('.mobile-menu-btn');
-        if (button) button.setAttribute('aria-expanded', 'false');
+        closeMobileMenu();
         if (btn) btn.focus();
       }
     });
-  }
 
-  // Smooth scroll for anchor links
-  function initSmoothScroll() {
-    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-      anchor.addEventListener('click', function (e) {
-        const hash = this.getAttribute('href');
-        if (!hash || hash === '#') return;
-        let target = null;
-        try {
-          target = document.querySelector(hash);
-        } catch (err) {
-          return; // Not a valid selector — let the browser handle it.
-        }
-        if (target) {
-          e.preventDefault();
-          target.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
+    // Close on a click outside the menu and the toggle button. Without this
+    // an open menu stays over the content the user just tapped.
+    document.addEventListener('click', (event) => {
+      if (!menu.classList.contains('show')) return;
+      if (menu.contains(event.target)) return;
+      if (btn && btn.contains(event.target)) return;
+      closeMobileMenu();
+    });
+
+    // Close on scroll — an open menu pinned over the page is in the way.
+    window.addEventListener('scroll', () => {
+      if (menu.classList.contains('show')) closeMobileMenu();
+    }, { passive: true });
+
+    // Close when the viewport grows past the mobile breakpoint and the
+    // desktop nav takes over.
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 768 && menu.classList.contains('show')) {
+        closeMobileMenu();
+      }
     });
   }
 
   function init() {
     initMobileMenu();
-    initSmoothScroll();
   }
 
   if (document.readyState === 'loading') {

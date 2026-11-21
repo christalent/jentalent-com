@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
+  <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Notary Log | Jenifer Talent, Notary Public</title>
   <meta name="description" content="Jenifer Talent — Notary Log. Track notarized documents and clients securely.">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" href="https://www.jentalent.com/log.html">
-  <meta name="robots" content="noindex">
 
   <!-- Open Graph -->
   <meta property="og:title" content="Notary Log | Jenifer Talent, Notary Public">
@@ -38,7 +39,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261121-2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 </head>
 <body>
@@ -49,16 +50,18 @@
         <li><a href="index.html">Home</a></li>
         <li><a href="services.html">Services</a></li>
         <li><a href="resume.html">Resume</a></li>
-        <li><a href="log.html" class="active">Notary Log</a></li>
+        <li><a href="log.html" class="active log-nav-link">Local Log (private)</a></li>
       </ul>
       <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
     </nav>
-    <ul class="mobile-menu" id="mobileMenu">
+    <nav aria-label="Primary (mobile)" class="mobile-menu-nav">
+      <ul class="mobile-menu" id="mobileMenu">
       <li><a href="index.html">Home</a></li>
       <li><a href="services.html">Services</a></li>
       <li><a href="resume.html">Resume</a></li>
-      <li><a href="log.html" class="active">Notary Log</a></li>
-    </ul>
+      <li><a href="log.html" class="active log-nav-link">Local Log (private)</a></li>
+      </ul>
+    </nav>
   </header>
 
   <main>
@@ -69,13 +72,38 @@
       </div>
     </section>
 
-    <section class="section">
+    <!-- PIN gate -->
+    <section class="section" id="pinGate" hidden>
       <div class="container">
         <div class="log-info">
           <div class="log-info-icon">🔒</div>
           <div>
-            <strong>Your data stays private</strong>
-            <p>All entries are stored locally on your device. Nothing is sent to any server.</p>
+            <strong>Enter the PIN to open the log</strong>
+            <p>Your log is stored on the server and is protected by a PIN. Entries are reachable from any device you sign in from.</p>
+          </div>
+        </div>
+
+        <form id="pinForm" class="pin-form">
+          <div class="form-error" id="pinError" role="alert" hidden></div>
+          <div class="form-group">
+            <label for="pinInput">PIN</label>
+            <input type="password" id="pinInput" inputmode="numeric" autocomplete="current-password" maxlength="32" required>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="pinSubmitBtn">Unlock Log</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Log content -->
+    <section class="section" id="logContent" hidden>
+      <div class="container">
+        <div class="log-info">
+          <div class="log-info-icon">🔒</div>
+          <div>
+            <strong>Stored on the server, protected by a PIN</strong>
+            <p>Your entries are kept in a server-side database and are only reachable with the PIN. Anyone with the PIN can read every entry, and uploaded identification images are stored unencrypted — use a device you trust. This is a personal tracking aid, not the official notarial journal.</p>
           </div>
         </div>
 
@@ -87,6 +115,7 @@
           <div class="log-buttons">
             <button type="button" class="btn btn-primary" id="addEntryBtn">+ Add Entry</button>
             <button type="button" class="btn btn-outline" id="exportBtn">Export CSV</button>
+            <button type="button" class="btn btn-outline" id="logoutBtn">Sign Out</button>
           </div>
         </div>
 
@@ -111,6 +140,7 @@
                 <th scope="col">Document Type</th>
                 <th scope="col">Notarization Type</th>
                 <th scope="col">Notes</th>
+                <th scope="col">Identification</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -135,7 +165,8 @@
       </div>
       <form id="entryForm">
         <input type="hidden" id="entryId">
-        
+        <div class="form-error" id="formError" role="alert" hidden></div>
+
         <div class="form-group">
           <label for="entryDate">Date *</label>
           <input type="date" id="entryDate" required>
@@ -143,30 +174,36 @@
 
         <div class="form-group">
           <label for="clientName">Client Name *</label>
-          <input type="text" id="clientName" placeholder="Full name" required>
+          <input type="text" id="clientName" placeholder="Full name" required maxlength="120">
         </div>
 
         <div class="form-group">
           <label for="documentType">Document Type *</label>
           <select id="documentType" required>
             <option value="">Select type...</option>
-            <option value="Deed">Deed</option>
-            <option value="Mortgage">Mortgage</option>
-            <option value="Refinance">Refinance</option>
-            <option value="Power of Attorney">Power of Attorney</option>
             <option value="Affidavit">Affidavit</option>
-            <option value="Contract">Contract / Agreement</option>
-            <option value="Lease">Lease</option>
-            <option value="Will">Will</option>
-            <option value="Trust">Trust</option>
-            <option value="Healthcare Directive">Healthcare Directive</option>
-            <option value="Court Document">Court Document</option>
-            <option value="Consent Form">Consent Form</option>
-            <option value="Travel Consent">Travel Consent (Minor)</option>
-            <option value="Copy Certification">Copy Certification</option>
             <option value="Business Document">Business Document</option>
+            <option value="Consent Form">Consent Form</option>
+            <option value="Contract">Contract / Agreement</option>
+            <option value="Copy Certification">Copy Certification</option>
+            <option value="Court Document">Court Document</option>
+            <option value="Deed">Deed</option>
+            <option value="Healthcare Directive">Healthcare Directive</option>
+            <option value="Lease">Lease</option>
+            <option value="Mortgage">Mortgage</option>
             <option value="Other">Other</option>
+            <option value="Power of Attorney">Power of Attorney</option>
+            <option value="Refinance">Refinance</option>
+            <option value="Travel Consent">Travel Consent (Minor)</option>
+            <option value="Trust">Trust</option>
+            <option value="Will">Will</option>
           </select>
+        </div>
+
+        <!-- Only shown when Document Type is "Other" -->
+        <div class="form-group" id="otherTypeGroup" hidden>
+          <label for="documentTypeOther">Other Document Type *</label>
+          <input type="text" id="documentTypeOther" placeholder="Describe the document type" maxlength="200">
         </div>
 
         <div class="form-group">
@@ -174,21 +211,47 @@
           <select id="notarizationType" required>
             <option value="">Select type...</option>
             <option value="Acknowledgment">Acknowledgment</option>
-            <option value="Jurat">Jurat (Subscribe & Swear)</option>
             <option value="Copy Certification">Copy Certification</option>
-            <option value="RON">Remote Online (RON)</option>
+            <option value="Jurat">Jurat (Subscribe &amp; Swear)</option>
             <option value="Other">Other</option>
+            <option value="RON">Remote Online (RON)</option>
           </select>
         </div>
 
         <div class="form-group">
           <label for="notes">Notes</label>
-          <textarea id="notes" rows="3" placeholder="Any additional details (optional)"></textarea>
+          <textarea id="notes" rows="3" placeholder="Any additional details (optional)" maxlength="1000"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="identificationType">Identification Type</label>
+          <select id="identificationType">
+            <option value="">Select type...</option>
+            <option value="Driver's License">Driver's License</option>
+            <option value="Passport">Passport</option>
+            <option value="State ID">State ID</option>
+            <option value="Thumb Print">Thumb Print</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="identificationNumber">Identification Number / Details</label>
+          <input type="text" id="identificationNumber" placeholder="ID number, thumb print details, etc. (optional)" maxlength="200">
+        </div>
+
+        <div class="form-group">
+          <label for="entryImage">Identification Image</label>
+          <input type="file" id="entryImage" accept="image/jpeg,image/png,image/webp,image/heic">
+          <p class="form-hint">Optional. A photo of a driver's license or other ID. JPEG, PNG, WebP or HEIC, up to 8 MB. Stored unencrypted on the server.</p>
+          <div class="image-preview" id="imagePreview" hidden>
+            <img id="imagePreviewImg" alt="Attached identification image preview">
+            <span id="imagePreviewLabel"></span>
+          </div>
         </div>
 
         <div class="form-actions">
           <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Entry</button>
+          <button type="submit" class="btn btn-primary" id="saveEntryBtn">Save Entry</button>
         </div>
       </form>
     </div>
@@ -201,7 +264,7 @@
     </div>
   </footer>
 
-  <script src="main.js"></script>
-  <script defer src="log.js"></script>
+  <script src="main.js?v=20261121-2"></script>
+  <script defer src="log.js?v=20261121-2"></script>
 </body>
 </html>
