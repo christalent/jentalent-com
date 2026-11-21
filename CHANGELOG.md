@@ -1,6 +1,36 @@
 # Changelog
 
-## 2026-11-21 — Identification type and number fields
+## 2026-11-21 — Open items tracked as GitHub Issues
+
+No functional change. The remaining work on the notary log was written down
+rather than left in a chat thread, in the repo's existing convention — issues
+under the Issues tab.
+
+- **#11 — Backup and durability for the notary log.** The log data is the
+  only thing on this site that cannot be rebuilt from the repo: the SQLite
+  database and the uploaded ID images live in `/home/tmp/log-data` on
+  NFSHost, outside the webroot and outside git. Candidate paths are rclone
+  to the existing cloud remotes and/or a local copy on BOSGAME, or moving
+  the whole application onto BOSGAME. Records the constraints that apply to
+  any option — most importantly, never copy a live SQLite database
+  directly, and decide a retention period before a recurring job exists.
+- **#12 — Rotate the PIN off the chat log.** The PIN was supplied over
+  Discord, so it is in a transcript. Deferred during prototyping.
+- **#13 — Reimplement "Clear All Entries."** Removed with the localStorage
+  rewrite and not yet replaced.
+- **#14 — Notarial compliance fields.** Time of the act, venue/county, and
+  signer address are still missing under RCW 42.45.180.
+- **#15 — Remaining code-review items.** Dialog role placement,
+  skip-to-content link, combined stat live regions, cache/CSP headers,
+  deferred `main.js`.
+- **#16 — Encrypt the uploaded ID images at rest.**
+- **#17 — Merge the branch into master.**
+- **#18 — Rewrite the stale README.**
+
+`OPEN-ITEMS.md` holds the long-form version of the same list.
+
+
+## 2026-11-21 — Identification type and identification number fields
 
 Added at Jen's request, between Notes and the image attachment.
 
