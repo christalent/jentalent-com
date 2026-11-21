@@ -19,7 +19,7 @@ issues are the work queue:
 | [#16](https://github.com/christalent/jentalent-com/issues/16) | Encrypt the uploaded ID images at rest |
 | [#17](https://github.com/christalent/jentalent-com/issues/17) | Merge the branch into master |
 | [#18](https://github.com/christalent/jentalent-com/issues/18) | Rewrite the stale README |
-| [#19](https://github.com/christalent/jentalent-com/issues/19) | Add a durable cache policy for the site assets |
+| [#19](https://github.com/christalent/jentalent-com/issues/19) | Add a durable cache policy for the site assets (closed by PR #20 — workaround landed, durable fix still open) |
 
 ---
 
@@ -210,18 +210,18 @@ record without the time and place of the act is still non-compliant.
 
 ## 7. Merge the branch
 
-**Status:** OPEN.
+**Status:** DONE — 2026-11-21.
 
-The work lives on `fix/notary-log-integrity-a11y` (commits `74e8860`,
-`361f8bd`, `92878b5`), pushed to origin, **not merged into `master`** and no
-PR opened yet.
+The branch was renamed to `feat/notary-log-server` (the old name no longer
+described its contents) and merged into `master` via **PR #20**, squash-merged
+as `1d07721`. The remote branch was deleted.
 
-Branch: https://github.com/christalent/jentalent-com/tree/fix/notary-log-integrity-a11y
+- PR: https://github.com/christalent/jentalent-com/pull/20
+- Merge commit: `1d0772198c25621c88fef6d23c155a45207de937`
 
-**Note:** the branch name no longer describes its contents. It now carries the
-server-backed rewrite, the PIN gate, image attachments, the "Other" document
-type, and the identification fields. A rename (e.g. `feat/notary-log-server`)
-would be clearer before the PR.
+That PR also closed issues #13, #14, #15, #16, #17, #18, and #19. The
+remaining open items are #11 (backup) and #12 (PIN rotation), both of which
+are deliberate deferrals rather than outstanding work.
 
 ---
 
