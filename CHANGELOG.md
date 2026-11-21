@@ -1,5 +1,160 @@
 # Changelog
 
+## 2026-11-21 — Notary log integrity + accessibility overhaul
+
+Follows a full code review of the repo. The JS was disciplined (no XSS, no
+exfiltration, no prototype pollution), but two genuine **data-loss paths**
+existed in the notary log. Both are closed, along with the accessibility and
+real-world failure modes that review surfaced.
+
+### Fixed — data integrity
+
+- **Corrupt store no longer destroys the journal (data loss).** `loadEntries()`
+  caught a `JSON.parse` failure, returned `[]`, and the next `saveEntries()`
+  **overwrote the original key** — one stray byte silently destroyed every
+  record, with only a `console.warn`. Now the raw bytes are copied to
+  `notaryLogEntries.corrupt.<timestamp>` before anything else can overwrite
+  them, a persistent banner explains what happened, and the app **refuses to
+  write over a known-corrupt store** until it is restored. The backup is
+  written once per distinct corrupt value, not once per page load.
+- **Multi-tab clobbering (data loss).** `entries` was a per-tab in-memory array
+  and every save rewrote the whole thing. With no `storage` listener and no
+  re-read before write, a save in tab B erased tab A's records with no error
+  and no undo. Saves now merge with the stored copy before writing, and a
+  `storage` listener pulls in changes made in other tabs.
+- **A delete is no longer undone by the next save.** The merge above keeps
+  records written by other tabs — which meant a deleted record was
+  immediately resurrected from the stored copy. Deletions are now recorded as
+  tombstones in `notaryLogEntries.deleted`, so they survive both the next save
+  and a page reload. (Found by browser testing, not by the original review.)
+- **Entries are identified by stable UUID, not array index.** `openEditModal()`
+  stored an array *position*; any change to the array between open and save
+  shifted that index, so an edit could **overwrite a different client's
+  record**. Entries now carry a `crypto.randomUUID()` id and edit/delete
+  resolve by id lookup. Legacy records without an id are assigned one on load.
+- **An unparsable id no longer turns an edit into a duplicate add.** An id
+  that matches no record is now an error, not a silent `entries.push()`.
+- **A failed write is reported and rolled back.** A quota error or blocked
+  storage now surfaces a message instead of losing the text the notary just
+  typed.
+
+### Fixed — accessibility
+
+- **Focus is no longer lost after every edit and delete.** `saveEntry()`
+  re-rendered the table *before* closing the modal, destroying the Edit button
+  that `showModal()` had captured — `closeModal()` then called `.focus()` on a
+  detached node, a no-op. Focus now moves to the equivalent row's Edit button
+  after a save, and to the next row after a delete.
+- **Every row's buttons now have distinct accessible names.** All Edit buttons
+  announced "Edit entry" and all Delete buttons "Delete entry", so a screen
+  reader heard a flat indistinguishable list. They now read
+  "Edit entry for {client}".
+- **Mobile navigation now works without JavaScript.** Under 768px the desktop
+  nav was hidden and the mobile menu needed JS to become visible — with
+  scripting blocked or failed to load, a mobile visitor had **zero navigation**
+  and no indication a menu existed. The menu is now progressively enhanced: a
+  `no-js`/`js` class on `<html>` shows the link list by default.
+- **The mobile menu is dismissible.** It closed only on link click and Escape,
+  so an open menu stayed over the content the user just tapped. It now also
+  closes on outside click, on scroll, and on resize past the breakpoint.
+- **Validation errors are announced.** A missing required field was a silent
+  no-op relying on native validation; it now focuses the offending field and
+  shows the message in a `role="alert"` region.
+- **The mobile menu is a navigation landmark.** The `<ul id="mobileMenu">` sat
+  outside the `<nav>` element, so its links were not part of any landmark.
+- **Focus indication.** The stylesheet had **zero** `:focus`/`:focus-visible`
+  rules, leaving indication to whatever the UA default happened to be.
+  Added a 3px `:focus-visible` outline.
+- **`prefers-reduced-motion`** is now honoured — the stylesheet animated
+  transitions and `main.js` scrolled smoothly with no opt-out.
+- **`@media print`** rules now strip the site chrome, so printing the log
+  produces the table rather than the whole website.
+
+### Fixed — real-world notary failure modes
+
+- **`maxlength` on the text fields.** `clientName` and `notes` accepted
+  unbounded input; a pasted 2 MB note exceeded the ~5 MB quota, the write
+  failed, and the notary lost the text with no way to recover it. Now 120 and
+  1,000 characters.
+- **The date field cannot be set in the future** — no notarial act can be
+  dated ahead.
+- **CSV export has a UTF-8 BOM.** `José Ramírez` rendered as `JosÃ© RamÃrez`
+  in Excel (the Windows default). The export now starts with `\uFEFF`.
+- **The blob URL is no longer revoked synchronously.** `revokeObjectURL()`
+  fired in the same tick as `a.click()`, which can cancel the download in
+  Firefox/Safari — "Export CSV" silently produced no file. It is now deferred.
+- **The CSV formula guard covers LF and leading whitespace.** The pattern was
+  `/^[=+\-@\t\r]/` — LF was missing despite being in the OWASP set, and a
+  cell starting with `" ="` was not prefixed even though a spreadsheet that
+  trims leading whitespace would evaluate it. Leading whitespace is now
+  handled, while ordinary leading whitespace in a non-formula cell is
+  preserved verbatim rather than silently altered.
+- **Impossible dates are rejected.** `new Date(2026, 1, 30)` rolls over to
+  March 2, so the `NaN` guard never fired and a record dated `2026-02-30`
+  displayed as "Mar 2, 2026" — a wrong date on a legal record. Dates are now
+  round-trip validated.
+- **Added a "Clear All Entries" control.** On a shared or borrowed machine the
+  notary previously could not remove PII from `localStorage` without deleting
+  entries one at a time. Requires typed confirmation.
+
+### Changed
+
+- **The log no longer claims to be secure.** `log.html` said "Track notarized
+  documents and clients **securely**" and "Your data stays **private**" —
+  false for unencrypted `localStorage` on a shared machine. The copy now
+  states plainly that entries are stored in this browser on this device,
+  unencrypted, and that this is a personal tracking aid, not the official
+  notarial journal.
+- **The public nav link is now "Local Log (private)"** rather than "Notary
+  Log", so the site no longer advertises a notary engagement log to every
+  visitor from all four public pages.
+- **Dead CSS removed.** `credential-card`, `credential-detail`,
+  `credential-icon`, `credential-meta`, `edu-block`, `link-inline`,
+  `membership-list` and `resume-note` had no matching markup in any page.
+  The latent `#888` contrast failure inside them (3.54:1, fails WCAG AA) is
+  gone with them.
+- **Form controls now inherit the page font.** `.btn`, `.btn-small` and the
+  inputs set size and padding but no `font-family`, so on Linux/Android every
+  button and field rendered in the UA default face.
+- **Layout wraps on narrow screens.** `.log-stats`, `.log-buttons` and
+  `.form-actions` were single-row flex with no `flex-wrap`, causing
+  horizontal scroll at 320px.
+- **`main.js` — dead `initSmoothScroll()` deleted.** There is not a single
+  `href="#…"` in any HTML file.
+- **Transitions narrowed** from `all 0.2s` to the specific properties
+  animated, so layout-affecting properties are no longer animated.
+
+### Tests
+
+- The Node harness grew from 37 to **68 assertions**, covering the corrupt
+  store round-trip, duplicate-backup prevention, multi-tab merging, delete
+  tombstones (including across a simulated reload), UUID identity, impossible
+  dates, and the full CSV injection matrix.
+- The expanded suite caught two real defects during development: a
+  temporal-dead-zone crash when loading a corrupt store, and a CSV trigger
+  bug involving leading tabs. Both fixed.
+
+### Not changed (decisions for Chris and Jen)
+
+- The log is still a client-side tracker, not a legally sufficient journal —
+  see the note below.
+- Whether the localStorage log should be the system of record at all. If it
+  must survive a device failure or serve as the journal of record, the real
+  fix is a backend, not a better client-side store.
+- The "Local Log (private)" nav entry itself — it is a product call whether
+  to advertise a private log from a public site.
+
+### Note for Chris and Jen
+
+The notary log stores entries in `localStorage` only, and records neither the
+time of the act nor the address of the signer. WA notary journals must record
+the date *and time* of each act and the full name *and address* of each
+individual, and be retained for 10 years (RCW 42.45.180). As it stands this
+app is a convenience tracker, not a compliant journal. Adding address and time
+fields, a backup/export path, and a PIN are product decisions, so nothing was
+changed here.
+
+
 ## 2026-11-11 — Restore log page styles and harden the notary log
 
 ### Fixed

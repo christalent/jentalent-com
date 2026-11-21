@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
+  <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Services | Jenifer Talent, Notary Public</title>
@@ -53,16 +54,18 @@
         <li><a href="index.html">Home</a></li>
         <li><a href="services.html" class="active">Services</a></li>
         <li><a href="resume.html">Resume</a></li>
-        <li><a href="log.html">Notary Log</a></li>
+        <li><a href="log.html" class="log-nav-link">Local Log (private)</a></li>
       </ul>
       <button type="button" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
     </nav>
-    <ul class="mobile-menu" id="mobileMenu">
+    <nav aria-label="Primary (mobile)" class="mobile-menu-nav">
+      <ul class="mobile-menu" id="mobileMenu">
       <li><a href="index.html">Home</a></li>
       <li><a href="services.html" class="active">Services</a></li>
       <li><a href="resume.html">Resume</a></li>
-      <li><a href="log.html">Notary Log</a></li>
-    </ul>
+      <li><a href="log.html" class="log-nav-link">Local Log (private)</a></li>
+      </ul>
+    </nav>
   </header>
 
   <main>
