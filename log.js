@@ -1,235 +1,117 @@
-// log.js — Notary log (localStorage-backed)
-// All entries are stored client-side only. Nothing is sent to any server.
+// log.js — Notary log (server-backed)
+//
+// Entries live in a server-side database, not in the browser. The log is
+// protected by a PIN that is verified server-side; the PIN itself is never
+// present in this file or in any response from the server.
+//
+// Every user-supplied field is rendered with textContent (never innerHTML),
+// so the XSS surface stays closed.
 
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'notaryLogEntries';
-  const CORRUPT_PREFIX = STORAGE_KEY + '.corrupt.';
-  const DELETED_KEY = STORAGE_KEY + '.deleted';
+  const API = 'api.php';
+  let authenticated = false;
+  let entries = [];
 
-  // Set when the store could not be read intact. While this is set the log
-  // refuses to write over the original key, so a corrupt store is never
-  // destroyed by the app itself.
-  //
-  // NOTE: this must be declared BEFORE `entries` is initialised — the
-  // initial loadEntries() call can reach backupCorruptStore(), which
-  // assigns to it. Declaring it later is a temporal-dead-zone crash the
-  // moment a store turns out to be corrupt.
-  let storeCorrupt = false;
+  // ---------- API helpers ----------
 
-  // The raw bytes we have already backed up, so the same corrupt store is
-  // not copied again on every load.
-  let backedUpRaw = null;
-
-  const entries = loadEntries();
-
-  // ---------- Storage ----------
-  //
-  // Three failure modes this layer has to survive:
-  //   1. The stored value is unparseable  -> back it up, never overwrite it.
-  //   2. The stored value has bad records -> keep the good ones, keep the raw.
-  //   3. Another tab wrote since we loaded -> merge, don't clobber.
-
-  function loadEntries() {
-    let raw = null;
-    try {
-      raw = localStorage.getItem(STORAGE_KEY);
-    } catch (err) {
-      console.error('notary log: could not read local storage', err);
-      return [];
-    }
-
-    if (raw === null || raw === '') return [];
-
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      console.warn('notary log: stored entries are not valid JSON', err);
-      backupCorruptStore(raw, 'unparseable JSON');
-      return [];
-    }
-
-    if (!Array.isArray(parsed)) {
-      backupCorruptStore(raw, 'stored value is not an array');
-      return [];
-    }
-
-    const good = parsed.filter(isEntryShape).map(normalizeEntry);
-    if (good.length !== parsed.length) {
-      // Some records were unusable. Preserve the original before anything
-      // else can overwrite it.
-      backupCorruptStore(raw, `${parsed.length - good.length} unusable record(s)`);
-    }
-    return good;
-  }
-
-  // Copy the raw store to its own key so the original bytes are never lost.
-  //
-  // Guard against writing the same bytes over and over: the page can load
-  // the store more than once, and each load would otherwise add another
-  // copy until localStorage fills up with duplicates.
-  function backupCorruptStore(raw, reason) {
-    storeCorrupt = true;
-    if (backedUpRaw === raw) {
-      showCorruptBanner(reason);
-      return;
-    }
-    backedUpRaw = raw;
-    try {
-      localStorage.setItem(CORRUPT_PREFIX + Date.now(), raw);
-      console.warn(`notary log: backed up corrupt store (${reason})`);
-    } catch (err) {
-      // Quota exceeded — the backup is the last thing that can fail, and
-      // failing it must not throw into the caller.
-      console.error('notary log: could not back up corrupt store', err);
-    }
-    showCorruptBanner(reason);
-  }
-
-  function isEntryShape(value) {
-    return (
-      value !== null &&
-      typeof value === 'object' &&
-      typeof value.date === 'string' &&
-      typeof value.clientName === 'string'
-    );
-  }
-
-  function newEntryId() {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-    // Fallback for browsers without randomUUID. Still a unique identifier —
-    // it just is not cryptographically random, which is fine here.
-    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-  }
-
-  function normalizeEntry(entry) {
-    return {
-      // Stable identity. Legacy records without an id get one assigned so
-      // edit/delete can resolve by id instead of by array position.
-      id: typeof entry.id === 'string' && entry.id ? entry.id : newEntryId(),
-      date: entry.date,
-      clientName: entry.clientName,
-      documentType: typeof entry.documentType === 'string' ? entry.documentType : '',
-      notarizationType:
-        typeof entry.notarizationType === 'string' ? entry.notarizationType : '',
-      notes: typeof entry.notes === 'string' ? entry.notes : '',
+  async function api(action, options = {}) {
+    const opts = {
+      method: options.method || 'GET',
+      credentials: 'same-origin',
+      headers: {},
     };
+    if (options.body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(options.body);
+    }
+    const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (err) {
+      data = { ok: false, error: 'The server returned an unreadable response.' };
+    }
+    if (!res.ok) {
+      const error = new Error(data && data.error ? data.error : 'Request failed.');
+      error.status = res.status;
+      error.expired = res.status === 401;
+      throw error;
+    }
+    return data;
   }
 
-  // Ids this tab has deliberately removed. The merge below must not
-  // resurrect them from the stored copy — otherwise a delete is silently
-  // undone by the very next save.
-  //
-  // Persisted alongside the entries: an in-memory-only tombstone is lost on
-  // reload, and the next save would bring the deleted record back.
-  const deletedIds = new Set(
-    (function loadTombstones() {
-      try {
-        const raw = localStorage.getItem(DELETED_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
-      } catch (err) {
-        return [];
-      }
-    })()
-  );
+  // ---------- DOM helpers ----------
 
-  // Re-read the store and merge our in-memory changes on top of whatever
-  // another tab may have written since we loaded. This is what stops one
-  // tab's save from erasing another tab's records.
-  function mergeWithStored() {
-    let raw = null;
-    try {
-      raw = localStorage.getItem(STORAGE_KEY);
-    } catch (err) {
-      return entries;
-    }
-    if (raw === null || raw === '') return entries;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      // Another tab wrote garbage. Do not touch the store.
-      backupCorruptStore(raw, 'unparseable JSON');
-      return entries;
-    }
-    if (!Array.isArray(parsed)) return entries;
-
-    const stored = parsed.filter(isEntryShape).map(normalizeEntry);
-
-    // Our entries win on conflict (they are the newer intent), but records
-    // we have never seen — written by another tab — are kept.
-    //
-    // Records this tab deleted are NOT kept, even though the stored copy
-    // still lists them: the delete is the newer intent. Without this the
-    // delete would be undone by the next save.
-    const merged = [];
-    const seen = new Set();
-    entries.forEach((e) => {
-      merged.push(e);
-      seen.add(e.id);
-    });
-    stored.forEach((e) => {
-      if (seen.has(e.id)) return;
-      if (deletedIds.has(e.id)) return;
-      merged.push(e);
-    });
-    return merged;
+  function getEl(id) {
+    return document.getElementById(id);
   }
 
-  function saveEntries() {
-    // Never overwrite a store we know is corrupt — the backup is the only
-    // copy of those bytes.
-    if (storeCorrupt) {
-      alert(
-        'This log could not be read correctly and has been backed up. ' +
-          'Nothing will be written over it until you restore it. ' +
-          'Please contact the site owner.'
-      );
-      return false;
-    }
+  function setText(id, value) {
+    const el = getEl(id);
+    if (el) el.textContent = String(value);
+  }
 
-    const merged = mergeWithStored();
+  function clearChildren(el) {
+    while (el && el.firstChild) el.removeChild(el.firstChild);
+  }
 
+  function show(el, visible) {
+    if (el) el.hidden = !visible;
+  }
+
+  // ---------- PIN gate ----------
+
+  async function checkSession() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      // Persist the tombstones so a delete survives a page reload.
-      localStorage.setItem(DELETED_KEY, JSON.stringify([...deletedIds]));
-      // Replace the in-memory copy so the next render reflects the merge.
-      entries.length = 0;
-      merged.forEach((e) => entries.push(e));
-      return true;
+      const data = await api('status');
+      authenticated = !!data.authenticated;
     } catch (err) {
-      // Quota exceeded, private-mode restrictions, etc. Surface it instead of
-      // silently losing the record the notary just typed.
-      console.error('notary log: could not save entries', err);
-      alert(
-        'Could not save this entry to local storage. It may be full, or ' +
-          'private browsing may be blocking storage. Your entry was not saved.'
-      );
-      return false;
+      authenticated = false;
+    }
+    return authenticated;
+  }
+
+  async function doLogin(pin) {
+    const data = await api('login', { method: 'POST', body: { pin } });
+    authenticated = true;
+    return data;
+  }
+
+  async function doLogout() {
+    try {
+      await api('logout', { method: 'POST', body: {} });
+    } catch (err) {
+      // Even if the server call fails, drop the local session state.
+    }
+    authenticated = false;
+    entries = [];
+    renderEntries();
+    showPinGate();
+  }
+
+  function showPinGate() {
+    show(getEl('pinGate'), true);
+    show(getEl('logContent'), false);
+    const pinInput = getEl('pinInput');
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.focus();
     }
   }
 
-  // ---------- Corrupt-store banner ----------
+  function showLogContent() {
+    show(getEl('pinGate'), false);
+    show(getEl('logContent'), true);
+  }
 
-  function showCorruptBanner(reason) {
-    const banner = getEl('corruptBanner');
-    if (!banner) return;
-    const detail = getEl('corruptBannerDetail');
-    if (detail) {
-      detail.textContent =
-        'The stored log could not be read (' + reason + '). A backup of the ' +
-        'original data has been saved, and nothing will overwrite it until ' +
-        'the problem is resolved.';
+  function showPinError(message) {
+    const box = getEl('pinError');
+    if (box) {
+      box.textContent = message || '';
+      box.hidden = !message;
     }
-    banner.hidden = false;
   }
 
   // ---------- Dates ----------
@@ -259,7 +141,6 @@
   }
 
   function formatDate(isoDate) {
-    // Display as "Sep 30, 2026" to match the previous local format.
     if (!isoDate) return '';
     const d = parseLocalDate(isoDate);
     if (!d) return isoDate;
@@ -279,24 +160,7 @@
     return `${y}-${m}-${d}`;
   }
 
-  // ---------- DOM helpers ----------
-
-  function getEl(id) {
-    return document.getElementById(id);
-  }
-
-  function setText(id, value) {
-    const el = getEl(id);
-    if (el) el.textContent = String(value);
-  }
-
-  function clearChildren(el) {
-    while (el && el.firstChild) el.removeChild(el.firstChild);
-  }
-
   // ---------- Rendering ----------
-  // Uses textContent (not innerHTML) for every user-supplied field — keeps
-  // the XSS surface closed.
 
   function makeCell(text) {
     const td = document.createElement('td');
@@ -344,6 +208,14 @@
     });
   }
 
+  // "Other" shows what was actually typed in the description box.
+  function documentTypeLabel(entry) {
+    if (entry.documentType === 'Other' && entry.documentTypeOther) {
+      return 'Other — ' + entry.documentTypeOther;
+    }
+    return entry.documentType || '';
+  }
+
   function renderEntries() {
     const tbody = getEl('logTableBody');
     const emptyState = getEl('emptyState');
@@ -364,7 +236,7 @@
       const tr = document.createElement('tr');
       tr.appendChild(makeCell(formatDate(entry.date)));
       tr.appendChild(makeCell(entry.clientName || ''));
-      tr.appendChild(makeCell(entry.documentType || ''));
+      tr.appendChild(makeCell(documentTypeLabel(entry)));
       tr.appendChild(makeCell(entry.notarizationType || ''));
       tr.appendChild(makeCell(entry.notes || '—'));
       tr.appendChild(makeActionsCell(entry));
@@ -388,11 +260,8 @@
     filterEntries();
   }
 
-  // Move focus back to the row the user was working on. The old code tried
-  // to restore focus to the Edit button that showModal() had captured, but
-  // renderEntries() had already destroyed that node — so focus fell to the
-  // document body and keyboard users lost their place.
-  function restoreFocusToEntry(entryId, prefer) {
+  // Move focus back to the row the user was working on.
+  function restoreFocusToEntry(entryId) {
     if (!entryId) return;
     const tbody = getEl('logTableBody');
     if (!tbody) return;
@@ -433,7 +302,16 @@
     const idEl = getEl('entryId');
     if (idEl) idEl.value = '';
     const dateEl = getEl('entryDate');
-    if (dateEl) dateEl.value = todayLocalISO();
+    if (dateEl) {
+      dateEl.value = todayLocalISO();
+      dateEl.max = todayLocalISO();
+    }
+    const notesEl = getEl('notes');
+    if (notesEl) notesEl.value = '';
+    const otherEl = getEl('documentTypeOther');
+    if (otherEl) otherEl.value = '';
+    toggleOtherField();
+    clearImagePreview();
     showModal();
   }
 
@@ -442,15 +320,22 @@
     const idEl = getEl('entryId');
     if (idEl) idEl.value = entry.id;
     const dateEl = getEl('entryDate');
-    if (dateEl) dateEl.value = entry.date || '';
+    if (dateEl) {
+      dateEl.value = entry.date || '';
+      dateEl.max = todayLocalISO();
+    }
     const clientEl = getEl('clientName');
     if (clientEl) clientEl.value = entry.clientName || '';
     const docEl = getEl('documentType');
     if (docEl) docEl.value = entry.documentType || '';
+    const otherEl = getEl('documentTypeOther');
+    if (otherEl) otherEl.value = entry.documentTypeOther || '';
     const notEl = getEl('notarizationType');
     if (notEl) notEl.value = entry.notarizationType || '';
     const notesEl = getEl('notes');
     if (notesEl) notesEl.value = entry.notes || '';
+    toggleOtherField();
+    showImagePreview(entry);
     showModal();
   }
 
@@ -500,12 +385,99 @@
     }
   }
 
-  // Announce a validation problem where a screen reader will actually read it.
+  // ---------- "Other" document type ----------
+
+  // Show the description box only when "Other" is selected.
+  function toggleOtherField() {
+    const select = getEl('documentType');
+    const group = getEl('otherTypeGroup');
+    const input = getEl('documentTypeOther');
+    if (!select || !group) return;
+    const isOther = select.value === 'Other';
+    group.hidden = !isOther;
+    if (input) {
+      input.required = isOther;
+      if (!isOther) input.value = '';
+    }
+  }
+
+  // ---------- Image attachment ----------
+
+  let pendingImageFile = null;
+
+  function clearImagePreview() {
+    pendingImageFile = null;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    const fileInput = getEl('entryImage');
+    if (fileInput) fileInput.value = '';
+    if (preview) preview.hidden = true;
+    if (img) img.removeAttribute('src');
+    if (label) label.textContent = '';
+  }
+
+  function showImagePreview(entry) {
+    pendingImageFile = null;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    const fileInput = getEl('entryImage');
+    if (fileInput) fileInput.value = '';
+
+    if (!entry || !entry.hasImage) {
+      if (preview) preview.hidden = true;
+      if (img) img.removeAttribute('src');
+      if (label) label.textContent = '';
+      return;
+    }
+    if (preview) preview.hidden = false;
+    if (img) img.src = `${API}?action=image&id=${encodeURIComponent(entry.id)}`;
+    if (label) label.textContent = 'Image attached';
+  }
+
+  function handleImageSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      showFormError('The image must be smaller than 8 MB.', 'entryImage');
+      event.target.value = '';
+      return;
+    }
+    pendingImageFile = file;
+    const preview = getEl('imagePreview');
+    const img = getEl('imagePreviewImg');
+    const label = getEl('imagePreviewLabel');
+    if (preview) preview.hidden = false;
+    if (img) img.src = URL.createObjectURL(file);
+    if (label) label.textContent = file.name;
+  }
+
+  async function uploadImage(entryId) {
+    if (!pendingImageFile) return null;
+    const form = new FormData();
+    form.append('image', pendingImageFile);
+    form.append('id', entryId);
+    const res = await fetch(`${API}?action=upload`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'The image could not be uploaded.');
+    }
+    pendingImageFile = null;
+    return data;
+  }
+
+  // ---------- Saving ----------
+
   function showFormError(message, fieldId) {
     const box = getEl('formError');
     if (box) {
       box.textContent = message;
-      box.hidden = false;
+      box.hidden = !message;
     }
     if (fieldId) {
       const field = getEl(fieldId);
@@ -521,7 +493,7 @@
     }
   }
 
-  function saveEntry(event) {
+  async function saveEntry(event) {
     event.preventDefault();
     clearFormError();
 
@@ -529,15 +501,17 @@
     const dateEl = getEl('entryDate');
     const clientEl = getEl('clientName');
     const docEl = getEl('documentType');
+    const otherEl = getEl('documentTypeOther');
     const notEl = getEl('notarizationType');
     const notesEl = getEl('notes');
     if (!idEl || !dateEl || !clientEl || !docEl || !notEl || !notesEl) return;
 
-    const idVal = idEl.value;
     const record = {
+      id: idEl.value || '',
       date: dateEl.value,
       clientName: clientEl.value.trim(),
       documentType: docEl.value,
+      documentTypeOther: otherEl ? otherEl.value.trim() : '',
       notarizationType: notEl.value,
       notes: notesEl.value.trim(),
     };
@@ -554,63 +528,47 @@
       showFormError('Select a document type.', 'documentType');
       return;
     }
+    if (record.documentType === 'Other' && !record.documentTypeOther) {
+      showFormError('Describe the document type.', 'documentTypeOther');
+      return;
+    }
     if (!record.notarizationType) {
       showFormError('Select a notarization type.', 'notarizationType');
       return;
     }
 
-    let replacedIndex = -1;
-    let previousRecord = null;
-    let savedId = null;
+    const saveBtn = getEl('saveEntryBtn');
+    if (saveBtn) saveBtn.disabled = true;
 
-    if (idVal === '') {
-      record.id = newEntryId();
-      entries.push(record);
-      savedId = record.id;
-    } else {
-      // Resolve by stable id. An id that does not match any record is an
-      // error, not an add — silently creating a duplicate is how a notary
-      // ends up with two nearly identical entries for one client.
-      const idx = entries.findIndex((e) => e.id === idVal);
-      if (idx === -1) {
-        showFormError(
-          'That entry could not be found — it may have been deleted in ' +
-            'another tab. Close this dialog and try again.'
-        );
+    try {
+      const data = await api('save', { method: 'POST', body: { entry: record } });
+      const saved = data.entry;
+
+      // Attach a newly chosen image to the saved entry.
+      if (pendingImageFile && saved && saved.id) {
+        await uploadImage(saved.id);
+        saved.hasImage = true;
+      }
+
+      const idx = entries.findIndex((e) => e.id === saved.id);
+      if (idx >= 0) {
+        entries[idx] = saved;
+      } else {
+        entries.push(saved);
+      }
+
+      renderEntries();
+      closeModal();
+      restoreFocusToEntry(saved.id);
+    } catch (err) {
+      if (err.expired) {
+        await handleSessionExpired();
         return;
       }
-      replacedIndex = idx;
-      previousRecord = entries[idx];
-      record.id = previousRecord.id;
-      entries[idx] = record;
-      savedId = record.id;
+      showFormError(err.message || 'The entry could not be saved.');
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
     }
-
-    if (!saveEntries()) {
-      // Roll back the in-memory change so the UI and storage stay in sync.
-      if (replacedIndex >= 0) {
-        entries[replacedIndex] = previousRecord;
-      } else {
-        entries.pop();
-      }
-      return;
-    }
-
-    renderEntries();
-    closeModal();
-    // Focus the row we just touched, not the detached button.
-    restoreFocusToEntry(savedId);
-  }
-
-  // Test hook: runs the real delete path so the test exercises the same
-  // code the UI does.
-  function __deleteForTest(id) {
-    const index = entries.findIndex((e) => e.id === id);
-    if (index === -1) return false;
-    const entry = entries[index];
-    entries.splice(index, 1);
-    deletedIds.add(entry.id);
-    return saveEntries();
   }
 
   function findEntryById(id) {
@@ -622,62 +580,52 @@
     if (entry) openEditModal(entry);
   }
 
-  function deleteEntry(id) {
-    const index = entries.findIndex((e) => e.id === id);
-    if (index === -1) return;
-    const entry = entries[index];
+  async function deleteEntry(id) {
+    const entry = findEntryById(id);
+    if (!entry) return;
     const label = entry.clientName ? `"${entry.clientName}"` : 'this entry';
     if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
-    entries.splice(index, 1);
-    deletedIds.add(entry.id);
-    if (!saveEntries()) {
-      // Save failed — put it back and forget the deletion, so the next
-      // successful save does not silently drop it.
-      entries.splice(index, 0, entry);
-      deletedIds.delete(entry.id);
-      return;
-    }
-    renderEntries();
-    // Focus the next row's Edit button so the keyboard user keeps a
-    // position in the table.
-    const tbody = getEl('logTableBody');
-    const nextBtn = tbody && tbody.querySelector('button[data-entry-id]');
-    if (nextBtn && typeof nextBtn.focus === 'function') nextBtn.focus();
-  }
-
-  // ---------- Bulk clear ----------
-
-  function clearAllEntries() {
-    if (entries.length === 0) {
-      alert('The log is already empty.');
-      return;
-    }
-    const typed = prompt(
-      'This permanently deletes all ' + entries.length + ' entries from this ' +
-        'browser.\n\nType DELETE to confirm.'
-    );
-    if (typed === null) return;
-    if (typed.trim().toUpperCase() !== 'DELETE') {
-      alert('Not confirmed — nothing was deleted.');
-      return;
-    }
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(DELETED_KEY);
+      await api('delete', { method: 'POST', body: { id } });
+      entries = entries.filter((e) => e.id !== id);
+      renderEntries();
+      const tbody = getEl('logTableBody');
+      const nextBtn = tbody && tbody.querySelector('button[data-entry-id]');
+      if (nextBtn && typeof nextBtn.focus === 'function') nextBtn.focus();
     } catch (err) {
-      console.error('notary log: could not clear entries', err);
-      alert('Could not clear the log. Storage may be blocked by the browser.');
-      return;
+      if (err.expired) {
+        await handleSessionExpired();
+        return;
+      }
+      alert(err.message || 'The entry could not be deleted.');
     }
-    entries.length = 0;
-    deletedIds.clear();
-    storeCorrupt = false;
-    const banner = getEl('corruptBanner');
-    if (banner) banner.hidden = true;
-    renderEntries();
   }
 
-  // ---------- Export ----------
+  async function handleSessionExpired() {
+    authenticated = false;
+    entries = [];
+    renderEntries();
+    showPinGate();
+    showPinError('Your session expired. Enter the PIN to continue.');
+  }
+
+  // ---------- Load ----------
+
+  async function loadEntries() {
+    try {
+      const data = await api('list');
+      entries = Array.isArray(data.entries) ? data.entries : [];
+      renderEntries();
+    } catch (err) {
+      if (err.expired) {
+        await handleSessionExpired();
+        return;
+      }
+      alert(err.message || 'The log could not be loaded.');
+    }
+  }
+
+  // ---------- CSV export ----------
 
   // Neutralise spreadsheet formula injection: a cell starting with = + - @
   // (or a leading tab/CR/LF) is executed by Excel/Sheets when the CSV is
@@ -698,7 +646,7 @@
     // No trigger on the first character. But a spreadsheet may trim
     // leading spaces and then evaluate what is left, so a cell that
     // starts with spaces then "=" is still a formula.
-    const trimmed = s.replace(/^[ \u00A0\uFEFF]+/, '');
+    const trimmed = s.replace(/^[  ﻿]+/, '');
     if (trimmed !== s && /^[=+\-@]/.test(trimmed)) {
       const guarded = "'" + trimmed;
       return /[",\n\r]/.test(guarded)
@@ -716,12 +664,17 @@
       alert('No entries to export.');
       return;
     }
-    const headers = ['Date', 'Client Name', 'Document Type', 'Notarization Type', 'Notes'];
-    // Export in the same order the table displays (newest first).
+    const headers = [
+      'Date',
+      'Client Name',
+      'Document Type',
+      'Notarization Type',
+      'Notes',
+    ];
     const rows = sortedEntries().map((e) => [
       e.date,
       e.clientName || '',
-      e.documentType || '',
+      documentTypeLabel(e),
       e.notarizationType || '',
       e.notes || '',
     ]);
@@ -732,7 +685,7 @@
 
     // The BOM makes Excel read UTF-8 correctly instead of rendering
     // "JosÃ©" for a client named "José".
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -767,9 +720,6 @@
     const exportBtn = getEl('exportBtn');
     if (exportBtn) exportBtn.addEventListener('click', exportLog);
 
-    const clearBtn = getEl('clearAllBtn');
-    if (clearBtn) clearBtn.addEventListener('click', clearAllEntries);
-
     const closeBtn = getEl('closeModalBtn');
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
 
@@ -782,15 +732,43 @@
     const search = getEl('searchInput');
     if (search) search.addEventListener('input', filterEntries);
 
-    // Another tab changed the store — pull in what it wrote instead of
-    // letting the next save in this tab clobber it.
-    window.addEventListener('storage', (event) => {
-      if (event.key && event.key !== STORAGE_KEY) return;
-      const merged = mergeWithStored();
-      entries.length = 0;
-      merged.forEach((e) => entries.push(e));
-      renderEntries();
-    });
+    const docSelect = getEl('documentType');
+    if (docSelect) docSelect.addEventListener('change', toggleOtherField);
+
+    const imageInput = getEl('entryImage');
+    if (imageInput) imageInput.addEventListener('change', handleImageSelected);
+
+    const pinForm = getEl('pinForm');
+    if (pinForm) {
+      pinForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        showPinError('');
+        const input = getEl('pinInput');
+        const pin = input ? input.value : '';
+        const button = getEl('pinSubmitBtn');
+        if (button) button.disabled = true;
+        try {
+          await doLogin(pin);
+          showLogContent();
+          await loadEntries();
+        } catch (err) {
+          showPinError(err.message || 'Incorrect PIN.');
+          if (input) {
+            input.value = '';
+            input.focus();
+          }
+        } finally {
+          if (button) button.disabled = false;
+        }
+      });
+    }
+
+    const logoutBtn = getEl('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        await doLogout();
+      });
+    }
 
     renderEntries();
   }
@@ -800,4 +778,15 @@
   } else {
     init();
   }
+
+  // Resume an existing session, or show the PIN gate.
+  (async () => {
+    const ok = await checkSession();
+    if (ok) {
+      showLogContent();
+      await loadEntries();
+    } else {
+      showPinGate();
+    }
+  })();
 })();

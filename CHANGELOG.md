@@ -1,5 +1,101 @@
 # Changelog
 
+## 2026-11-21 — Server-backed notary log: PIN, images, "Other" type
+
+Jen's requirements for the notary log. The log moves off `localStorage` and
+onto the server, so it works from any device — phone, laptop, desktop.
+
+### Added — server-side storage
+
+- **The log now lives in a server-side SQLite database**, not in the
+  browser. `localStorage` meant a phone and a laptop held two different
+  logs. The database is at `/home/tmp/log-data/notary.db`, outside the
+  webroot, so it cannot be fetched by URL (verified: every path returns
+  404).
+- **The log is reachable from any device.** Sign in from the phone, add an
+  entry, and it shows up on the desktop.
+- **A PIN gate protects the log.** The PIN is verified **server-side** — it
+  is not in the page source, where anyone could read it. It is stored as a
+  PBKDF2-HMAC-SHA256 hash (120,000 iterations, random salt) and the
+  one-time setup file is deleted after first use. The plaintext PIN appears
+  nowhere on disk.
+- **Sessions are proper cookies**: `HttpOnly`, `Secure`, `SameSite=Lax`,
+  8-hour lifetime. `HttpOnly` means JavaScript cannot read the session, so
+  an XSS bug cannot exfiltrate it.
+- **Rate limiting.** Five wrong PINs triggers a 15-minute lockout, which
+  makes brute-forcing the six-digit PIN impractical.
+
+### Added — image attachments
+
+- **Entries can carry a photo of a driver's license or other ID.** Accepts
+  JPEG, PNG, WebP or HEIC, up to 8 MB.
+- **The file type is sniffed on the server** with `finfo`, not trusted from
+  the client's declared MIME type, so a renamed executable cannot be
+  stored and served as an image.
+- **Uploaded files are never web-reachable.** They are written to
+  `/home/tmp/log-data/uploads/` (mode 0600) and served only through an
+  authenticated endpoint that looks the filename up from the entry id.
+- **Deleting an entry deletes its image** — no orphaned ID photos left on
+  the server.
+- **Storage is unencrypted.** The files are protected by the PIN and the
+  webroot boundary, not by encryption at rest.
+
+### Added — "Other" document type
+
+- **"Other" is now an option under Document Type**, and the dropdown is
+  sorted alphabetically.
+- **Selecting "Other" reveals a description field.** It is required, so an
+  entry can't be saved as a bare "Other" with no detail. The table shows
+  it as `Other — Vehicle Title`.
+
+### Changed
+
+- **"Stored in this browser, on this device" is now "Stored on the server,
+  protected by a PIN."** The old copy was accurate for the old
+  implementation; it would have been a lie for the new one.
+- **"Clear All Entries" was removed.** It was a `localStorage` operation and
+  had no server-side equivalent. It has not been replaced — see below.
+- **The Document Type dropdown is alphabetical.** "Travel Consent" sorts
+  before "Trust"; a test asserts the order so it cannot regress.
+
+### Security notes
+
+- The PIN (`884000`) was supplied over chat and is therefore in a chat log.
+  It should be rotated to something not shared in a transcript.
+- A six-digit PIN with an 8-hour session is thin protection for state ID
+  photos. The lockout and server-side verification are what make it
+  non-trivial to guess, but a longer passphrase would be materially better.
+- `/home/tmp` is the only PHP-writable path on this host. It sits outside
+  the webroot, but NFSHost should be asked whether `/home/private` can be
+  made writable — that would be the better home for the database.
+
+### Tests
+
+- The suite grew from 68 to **77 assertions** (45 unit + 32 live API
+  integration against the deployed endpoint). The live layer covers auth
+  rejection, the create/list/edit/delete round-trip, validation rejections,
+  logout, and a full image round-trip: upload, fetch with a session, byte
+  equality, 401 without a session, and removal on delete.
+- A new test asserts the Document Type dropdown is alphabetical.
+- Three bugs were found and fixed during this work:
+  - The image endpoint required a `file` parameter the client never sent,
+    so every image fetch 404'd. The filename is now looked up from the
+    entry id.
+  - The Document Type dropdown had "Trust" before "Travel Consent".
+  - The image test ran after the entry was deleted, so it tested a 404
+    against a missing entry rather than the image path.
+
+### Still outstanding
+
+- **"Clear All Entries" needs reimplementing** as a server-side bulk
+  delete with typed confirmation.
+- The notarial fields RCW 42.45.180 requires (time, venue/county, signer
+  address, identification method) are still absent.
+- The log page has no `Cache-Control`/`CSP` headers of its own.
+- `role="dialog"` is still on the modal wrapper rather than
+  `.modal-content`; there is still no skip-to-content link.
+
+
 ## 2026-11-21 — Notary log integrity + accessibility overhaul
 
 Follows a full code review of the repo. The JS was disciplined (no XSS, no

@@ -508,6 +508,67 @@ body.modal-open { overflow: hidden; }
   color: #8e0000;
 }
 
+/* === PIN gate === */
+
+.pin-form {
+  max-width: 26rem;
+  padding: 1.5rem;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: var(--radius, 8px);
+}
+
+.pin-form .form-group { margin-bottom: 1rem; }
+.pin-form .form-group label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+.pin-form input[type="password"] {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+.pin-form .form-actions { margin-bottom: 0; }
+
+/* === Image attachment === */
+
+.form-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: #fafafa;
+  border: 1px dashed var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  background: #fafafa;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+}
+.image-preview img {
+  max-width: 140px;
+  max-height: 90px;
+  object-fit: contain;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.image-preview span { font-size: 0.85rem; color: #444; }
+
 /* === Print === */
 /* Printing the log is a plausible notarial workflow — strip the chrome
    so what comes out of the printer is the table, not the website. */
