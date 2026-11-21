@@ -19,6 +19,23 @@ issues are the work queue:
 | [#16](https://github.com/christalent/jentalent-com/issues/16) | Encrypt the uploaded ID images at rest |
 | [#17](https://github.com/christalent/jentalent-com/issues/17) | Merge the branch into master |
 | [#18](https://github.com/christalent/jentalent-com/issues/18) | Rewrite the stale README |
+| [#19](https://github.com/christalent/jentalent-com/issues/19) | Add a durable cache policy for the site assets |
+
+---
+
+## 9. Durable cache policy for the site assets
+
+**Status:** OPEN — workaround in place, durable fix not done.
+
+NFSHost sits behind an edge cache (`via: e7s`) that serves static assets by
+URL. After a deploy it keeps returning the old stylesheet and JS for the same
+URL. The version query on asset references is the current workaround, and
+`deploy.sh` bumps it automatically. The open part is removing the manual
+version from the equation — most likely by content-hashing the asset
+filenames. Tracked in issue #19.
+
+**Do not try `.htaccess`.** The account's Apache has no `mod_headers`; a
+`Header set` directive produces a 500 on every CSS and JS request.
 
 ---
 
