@@ -216,6 +216,14 @@
     return entry.documentType || '';
   }
 
+  // The identification type and its number/details in a single cell.
+  function identificationLabel(entry) {
+    const type = entry.identificationType || '';
+    const number = entry.identificationNumber || '';
+    if (type && number) return type + ' — ' + number;
+    return type || number || '';
+  }
+
   function renderEntries() {
     const tbody = getEl('logTableBody');
     const emptyState = getEl('emptyState');
@@ -239,6 +247,7 @@
       tr.appendChild(makeCell(documentTypeLabel(entry)));
       tr.appendChild(makeCell(entry.notarizationType || ''));
       tr.appendChild(makeCell(entry.notes || '—'));
+      tr.appendChild(makeCell(identificationLabel(entry)));
       tr.appendChild(makeActionsCell(entry));
       tbody.appendChild(tr);
     });
@@ -310,6 +319,10 @@
     if (notesEl) notesEl.value = '';
     const otherEl = getEl('documentTypeOther');
     if (otherEl) otherEl.value = '';
+    const idTypeEl = getEl('identificationType');
+    if (idTypeEl) idTypeEl.value = '';
+    const idNumEl = getEl('identificationNumber');
+    if (idNumEl) idNumEl.value = '';
     toggleOtherField();
     clearImagePreview();
     showModal();
@@ -334,6 +347,10 @@
     if (notEl) notEl.value = entry.notarizationType || '';
     const notesEl = getEl('notes');
     if (notesEl) notesEl.value = entry.notes || '';
+    const idTypeEl = getEl('identificationType');
+    if (idTypeEl) idTypeEl.value = entry.identificationType || '';
+    const idNumEl = getEl('identificationNumber');
+    if (idNumEl) idNumEl.value = entry.identificationNumber || '';
     toggleOtherField();
     showImagePreview(entry);
     showModal();
@@ -504,6 +521,8 @@
     const otherEl = getEl('documentTypeOther');
     const notEl = getEl('notarizationType');
     const notesEl = getEl('notes');
+    const idTypeEl = getEl('identificationType');
+    const idNumEl = getEl('identificationNumber');
     if (!idEl || !dateEl || !clientEl || !docEl || !notEl || !notesEl) return;
 
     const record = {
@@ -514,6 +533,8 @@
       documentTypeOther: otherEl ? otherEl.value.trim() : '',
       notarizationType: notEl.value,
       notes: notesEl.value.trim(),
+      identificationType: idTypeEl ? idTypeEl.value : '',
+      identificationNumber: idNumEl ? idNumEl.value.trim() : '',
     };
 
     if (!record.date) {
@@ -534,6 +555,10 @@
     }
     if (!record.notarizationType) {
       showFormError('Select a notarization type.', 'notarizationType');
+      return;
+    }
+    if (record.identificationNumber && !record.identificationType) {
+      showFormError('Select an identification type.', 'identificationType');
       return;
     }
 
@@ -670,6 +695,8 @@
       'Document Type',
       'Notarization Type',
       'Notes',
+      'Identification Type',
+      'Identification Number',
     ];
     const rows = sortedEntries().map((e) => [
       e.date,
@@ -677,6 +704,8 @@
       documentTypeLabel(e),
       e.notarizationType || '',
       e.notes || '',
+      e.identificationType || '',
+      e.identificationNumber || '',
     ]);
     const csv =
       [headers, ...rows]

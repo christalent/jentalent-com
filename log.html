@@ -140,6 +140,7 @@
                 <th scope="col">Document Type</th>
                 <th scope="col">Notarization Type</th>
                 <th scope="col">Notes</th>
+                <th scope="col">Identification</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -220,6 +221,22 @@
         <div class="form-group">
           <label for="notes">Notes</label>
           <textarea id="notes" rows="3" placeholder="Any additional details (optional)" maxlength="1000"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="identificationType">Identification Type</label>
+          <select id="identificationType">
+            <option value="">Select type...</option>
+            <option value="Driver's License">Driver's License</option>
+            <option value="Passport">Passport</option>
+            <option value="State ID">State ID</option>
+            <option value="Thumb Print">Thumb Print</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="identificationNumber">Identification Number / Details</label>
+          <input type="text" id="identificationNumber" placeholder="ID number, thumb print details, etc. (optional)" maxlength="200">
         </div>
 
         <div class="form-group">

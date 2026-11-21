@@ -31,6 +31,15 @@ const LOCKOUT_SECONDS = 15 * 60;       // lockout length
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
+// The identification types the form offers. The server validates against
+// this list rather than trusting whatever the client sent.
+const ALLOWED_IDENTIFICATION_TYPES = [
+    "Driver's License",
+    'Passport',
+    'State ID',
+    'Thumb Print',
+];
+
 // ---------------------------------------------------------------------------
 // Response helpers
 // ---------------------------------------------------------------------------
@@ -80,6 +89,22 @@ function db(): PDO
     }
     $pdo->exec('PRAGMA journal_mode = WAL');
     $pdo->exec('PRAGMA foreign_keys = ON');
+
+    // Migrate an existing database. ALTER TABLE ADD COLUMN is not
+    // idempotent, so each column is checked before it is added.
+    $existing = [];
+    foreach ($pdo->query('PRAGMA table_info(entries)')->fetchAll() as $col) {
+        $existing[] = $col['name'];
+    }
+    foreach ([
+        'identification_type'   => "TEXT NOT NULL DEFAULT ''",
+        'identification_number' => "TEXT NOT NULL DEFAULT ''",
+    ] as $column => $definition) {
+        if (!in_array($column, $existing, true)) {
+            $pdo->exec('ALTER TABLE entries ADD COLUMN ' . $column . ' ' . $definition);
+        }
+    }
+
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS entries (
             id                TEXT PRIMARY KEY,
@@ -89,6 +114,8 @@ function db(): PDO
             document_type_other TEXT NOT NULL DEFAULT "",
             notarization_type TEXT NOT NULL DEFAULT "",
             notes             TEXT NOT NULL DEFAULT "",
+            identification_type TEXT NOT NULL DEFAULT "",
+            identification_number TEXT NOT NULL DEFAULT "",
             image_file        TEXT,
             created_at        TEXT NOT NULL,
             updated_at        TEXT NOT NULL
@@ -280,6 +307,8 @@ function entry_to_row(array $r): array
         'documentTypeOther' => $r['document_type_other'],
         'notarizationType'  => $r['notarization_type'],
         'notes'             => $r['notes'],
+        'identificationType' => $r['identification_type'],
+        'identificationNumber' => $r['identification_number'],
         'hasImage'          => $r['image_file'] !== null && $r['image_file'] !== '',
         'createdAt'         => $r['created_at'],
         'updatedAt'         => $r['updated_at'],
@@ -307,6 +336,8 @@ function handle_save(): never
     $documentTypeOther = clean_text($entry['documentTypeOther'] ?? '', 200);
     $notarizationType = clean_text($entry['notarizationType'] ?? '', 80);
     $notes = clean_text($entry['notes'] ?? '', 2000);
+    $identificationType = clean_text($entry['identificationType'] ?? '', 80);
+    $identificationNumber = clean_text($entry['identificationNumber'] ?? '', 200);
 
     if (!valid_date($date)) {
         fail('A valid date is required.');
@@ -323,6 +354,12 @@ function handle_save(): never
     if ($notarizationType === '') {
         fail('Select a notarization type.');
     }
+    if ($identificationType !== '' && !in_array($identificationType, ALLOWED_IDENTIFICATION_TYPES, true)) {
+        fail('Select a valid identification type.');
+    }
+    if ($identificationNumber !== '' && $identificationType === '') {
+        fail('Select an identification type.');
+    }
 
     $pdo = db();
     $now = gmdate('c');
@@ -332,24 +369,28 @@ function handle_save(): never
         $stmt = $pdo->prepare(
             'INSERT INTO entries
                 (id, log_date, client_name, document_type, document_type_other,
-                 notarization_type, notes, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 notarization_type, notes, identification_type,
+                 identification_number, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id, $date, $clientName, $documentType, $documentTypeOther,
-            $notarizationType, $notes, $now, $now,
+            $notarizationType, $notes, $identificationType,
+            $identificationNumber, $now, $now,
         ]);
     } else {
         $stmt = $pdo->prepare(
             'UPDATE entries SET
                 log_date = ?, client_name = ?, document_type = ?,
                 document_type_other = ?, notarization_type = ?, notes = ?,
+                identification_type = ?, identification_number = ?,
                 updated_at = ?
              WHERE id = ?'
         );
         $stmt->execute([
             $date, $clientName, $documentType, $documentTypeOther,
-            $notarizationType, $notes, $now, $id,
+            $notarizationType, $notes, $identificationType,
+            $identificationNumber, $now, $id,
         ]);
         if ($stmt->rowCount() === 0) {
             $exists = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE id = ?');

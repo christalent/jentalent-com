@@ -27,6 +27,7 @@ const EXPORTS = [
   'todayLocalISO',
   'sortedEntries',
   'documentTypeLabel',
+  'identificationLabel',
 ];
 
 const exportLine = `  return { ${EXPORTS.join(', ')} };`;
@@ -314,7 +315,72 @@ function check(label, actual, expected) {
   );
 }
 
-// === 6. Live API integration — skipped unless API_URL is provided ==========
+// === 6. The Identification Type field ======================================
+{
+  const { api } = buildEnv();
+  check(
+    'label: identification type only',
+    api.identificationLabel({ identificationType: 'Passport', identificationNumber: '' }),
+    'Passport'
+  );
+  check(
+    'label: identification type and number',
+    api.identificationLabel({ identificationType: 'State ID', identificationNumber: 'S-12345' }),
+    'State ID — S-12345'
+  );
+  check(
+    'label: identification number only',
+    api.identificationLabel({ identificationType: '', identificationNumber: 'S-12345' }),
+    'S-12345'
+  );
+  check(
+    'label: no identification',
+    api.identificationLabel({ identificationType: '', identificationNumber: '' }),
+    ''
+  );
+
+  const html = fs.readFileSync(path.join(__dirname, '..', 'log.html'), 'utf8');
+
+  // The Identification Type dropdown must exist and be alphabetical.
+  const idMatch = html.match(/<select id="identificationType"[^>]*>([\s\S]*?)<\/select>/);
+  check('html: the identificationType select exists', !!idMatch, true);
+  if (idMatch) {
+    const labels = [...idMatch[1].matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map((m) =>
+      m[1].trim()
+    );
+    const types = labels.slice(1);
+    check(
+      'html: the identification types are Driver\'s License, Passport, State ID, Thumb Print',
+      JSON.stringify(types),
+      JSON.stringify(["Driver's License", 'Passport', 'State ID', 'Thumb Print'])
+    );
+    const sorted = [...types].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
+    check(
+      'html: the identification types are alphabetical',
+      JSON.stringify(types) === JSON.stringify(sorted),
+      true
+    );
+  }
+
+  // The number field must exist below the type field.
+  check('html: the identificationNumber field exists', /id="identificationNumber"/.test(html), true);
+
+  // Field order: Notes, then Identification Type, then Identification Number,
+  // then Identification Image.
+  const order = ['id="notes"', 'id="identificationType"', 'id="identificationNumber"', 'id="entryImage"'];
+  const positions = order.map((needle) => html.indexOf(needle));
+  check('html: all four fields are present', positions.every((p) => p >= 0), true);
+  check(
+    'html: the fields are ordered Notes -> Identification Type -> Identification Number -> Image',
+    positions.every((p, i) => i === 0 || p > positions[i - 1]),
+    true
+  );
+
+  // The table needs an Identification column.
+  check('html: the table has an Identification column', /<th scope="col">Identification<\/th>/.test(html), true);
+}
+
+// === 7. Live API integration — skipped unless API_URL is provided ==========
 (async () => {
   const API_URL = process.env.API_URL;
   const API_PIN = process.env.API_PIN;
@@ -457,6 +523,73 @@ function check(label, actual, expected) {
       });
       check('api: a missing client name is rejected', badName.status, 400);
 
+      // The identification fields must round-trip.
+      const withId = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: created.body.entry.id,
+            date: '2026-11-21',
+            clientName: 'ZZ API Test',
+            documentType: 'Other',
+            documentTypeOther: 'Vehicle Title',
+            notarizationType: 'Acknowledgment',
+            notes: 'created by the API test harness',
+            identificationType: 'Driver\'s License',
+            identificationNumber: 'WA-DL-99887766',
+          },
+        },
+      });
+      check('api: saving the identification fields succeeds', withId.status, 200);
+      check(
+        'api: the identification type is stored',
+        withId.body && withId.body.entry && withId.body.entry.identificationType,
+        "Driver's License"
+      );
+      check(
+        'api: the identification number is stored',
+        withId.body && withId.body.entry && withId.body.entry.identificationNumber,
+        'WA-DL-99887766'
+      );
+
+      const listedWithId = await call('list');
+      const storedWithId = (listedWithId.body.entries || []).find(
+        (e) => e.id === created.body.entry.id
+      );
+      check(
+        'api: the listed entry reports the identification type',
+        storedWithId && storedWithId.identificationType,
+        "Driver's License"
+      );
+
+      // An identification type outside the allowed set must be rejected.
+      const badIdType = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '', date: '2026-11-21', clientName: 'ZZ Bad Id',
+            documentType: 'Deed', notarizationType: 'Acknowledgment', notes: '',
+            identificationType: 'Telepathy',
+            identificationNumber: 'X',
+          },
+        },
+      });
+      check('api: an unknown identification type is rejected', badIdType.status, 400);
+
+      // An ID number with no type must be rejected.
+      const noIdType = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '', date: '2026-11-21', clientName: 'ZZ No Id Type',
+            documentType: 'Deed', notarizationType: 'Acknowledgment', notes: '',
+            identificationType: '',
+            identificationNumber: 'WA-DL-123',
+          },
+        },
+      });
+      check('api: an ID number with no type is rejected', noIdType.status, 400);
+
       // Edit the entry.
       const edited = await call('save', {
         method: 'POST',
@@ -469,15 +602,44 @@ function check(label, actual, expected) {
             documentTypeOther: 'Vehicle Title',
             notarizationType: 'Jurat',
             notes: 'edited by the API test harness',
+            identificationType: 'State ID',
+            identificationNumber: 'S-12345',
           },
         },
       });
       check('api: editing an entry succeeds', edited.status, 200);
       check(
+        'api: the edit updated the identification type',
+        edited.body && edited.body.entry && edited.body.entry.identificationType,
+        'State ID'
+      );
+      check(
         'api: the edit was applied',
         edited.body && edited.body.entry && edited.body.entry.clientName,
         'ZZ API Test Edited'
       );
+
+      // Thumb Print is a valid type too, with free-text details.
+      const thumb = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '', date: '2026-11-21', clientName: 'ZZ Thumb',
+            documentType: 'Deed', notarizationType: 'Jurat', notes: '',
+            identificationType: 'Thumb Print',
+            identificationNumber: 'Right thumb, rolled ink',
+          },
+        },
+      });
+      check('api: a Thumb Print entry saves', thumb.status, 200);
+      check(
+        'api: the Thumb Print type is stored',
+        thumb.body && thumb.body.entry && thumb.body.entry.identificationType,
+        'Thumb Print'
+      );
+      if (thumb.body && thumb.body.entry && thumb.body.entry.id) {
+        await call('delete', { method: 'POST', body: { id: thumb.body.entry.id } });
+      }
 
       // Image round-trip: upload, then fetch it back through the
       // authenticated endpoint. This runs BEFORE the delete so the entry

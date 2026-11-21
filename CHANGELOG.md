@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-11-21 — Identification type and number fields
+
+Added at Jen's request, between Notes and the image attachment.
+
+- **"Identification Type"** is a select with the four options in
+  alphabetical order: Driver's License, Passport, State ID, Thumb Print.
+- **"Identification Number / Details"** is a free-text field below it, for
+  the ID number or, in the case of a thumb print, whatever detail the
+  notary records.
+- Both fields are optional, but an ID number **requires** a type — the
+  server rejects an entry that has one without the other, in both
+  directions.
+- The identification type is validated **server-side** against an
+  allow-list. The client cannot smuggle an arbitrary string into the
+  field.
+- The table gains an **Identification** column showing `Driver's License —
+  WA-DL-99887766`.
+- The CSV export gains **Identification Type** and **Identification Number**
+  columns.
+- The existing database was migrated in place with `ALTER TABLE ADD
+  COLUMN`, guarded by a `PRAGMA table_info` check so the migration is
+  idempotent and re-runnable.
+
+### Tests
+
+- The suite grew from 77 to **97 assertions** (56 unit + 41 live API
+  integration). New coverage: the identification label rendering, the
+  dropdown options and their alphabetical order, the field order in the
+  form (Notes -> Identification Type -> Identification Number -> Image),
+  the table column, the API round-trip of both fields, rejection of an
+  unknown identification type, and rejection of an ID number with no type.
+
+
 ## 2026-11-21 — Server-backed notary log: PIN, images, "Other" type
 
 Jen's requirements for the notary log. The log moves off `localStorage` and
