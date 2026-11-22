@@ -435,6 +435,96 @@ function check(label, actual, expected) {
   );
 }
 
+// === 13. The RCW 42.45.180 compliance fields =============================
+{
+  const html = fs.readFileSync(path.join(__dirname, '..', 'log.html'), 'utf8');
+  const api = fs.readFileSync(path.join(__dirname, '..', 'api.php'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'log.js'), 'utf8');
+
+  // The statute requires the journal to record the time and place of the
+  // notarial act, so the form must collect them.
+  check('html: the time-of-act field exists', html.includes('id="entryTime"'), true);
+  check('html: the venue field exists', html.includes('id="venue"'), true);
+  check('html: the county field exists', html.includes('id="county"'), true);
+  check('html: the signer-address field exists', html.includes('id="signerAddress"'), true);
+
+  // The time of act and the venue are mandatory.
+  const timeField = html.match(/<input[^>]*id="entryTime"[^>]*>/);
+  check('html: the time-of-act field is required', !!timeField && timeField[0].includes('required'), true);
+  const venueField = html.match(/<input[^>]*id="venue"[^>]*>/);
+  check('html: the venue field is required', !!venueField && venueField[0].includes('required'), true);
+  const countyField = html.match(/<input[^>]*id="county"[^>]*>/);
+  check('html: the county field is required', !!countyField && countyField[0].includes('required'), true);
+
+  // The schema carries all four.
+  for (const column of ['entry_time', 'venue', 'county', 'signer_address']) {
+    check(`api: the ${column} column exists in the schema`, api.includes(column), true);
+  }
+  // And the migration covers the pre-existing database.
+  const migration = api.match(/foreach \(\[([\s\S]*?)\] as \$column/);
+  check('api: there is a column migration block', !!migration, true);
+  if (migration) {
+    for (const column of ['entry_time', 'venue', 'county', 'signer_address']) {
+      check(`api: the migration adds ${column}`, migration[1].includes(column), true);
+    }
+  }
+
+  // The client sends them, reloads them, and renders them.
+  check('js: the client submits entryTime', js.includes('entryTime: timeEl'), true);
+  check('js: the client submits venue', js.includes('venue: venueEl'), true);
+  check('js: the client submits county', js.includes('county: countyEl'), true);
+  check('js: the client submits signerAddress', js.includes('signerAddress: addrEl'), true);
+  check('js: the edit form reloads entryTime', js.includes('timeEl.value = entry.entryTime'), true);
+  check('js: the table renders a time/place cell', js.includes('venueLabel(entry)'), true);
+  check('js: the CSV export includes the compliance columns', js.includes("'Time of Notarial Act'"), true);
+  check('js: the CSV export includes the county', js.includes("'County'"), true);
+}
+
+// === 14. Accessibility items from the code review =========================
+{
+  const html = fs.readFileSync(path.join(__dirname, '..', 'log.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+
+  // role="dialog" belongs on the dialog box, not the overlay wrapper.
+  const dialogBox = html.match(/<div class="modal-content"[^>]*role="dialog"[^>]*>/);
+  check('html: role="dialog" is on the modal content', !!dialogBox, true);
+  const overlayWithRole = html.match(/<div id="entryModal"[^>]*role="dialog"/);
+  check('html: role="dialog" is not on the overlay', !overlayWithRole, true);
+
+  // The two statistics are one live region, not two.
+  check('html: the stats block is a live region', /class="log-stats"[^>]*aria-live="polite"/.test(html), true);
+  const individualLiveRegions = (html.match(/class="stat-box"[^>]*aria-live/g) || []).length;
+  check('html: the stat boxes are not separate live regions', individualLiveRegions, 0);
+
+  // The shared script is deferred so it cannot block parsing.
+  check('html: main.js is deferred', /<script defer src="main\.js/.test(html), true);
+
+  // A skip link lets a keyboard user bypass the navigation.
+  check('html: the log page has a skip link', html.includes('class="skip-link"'), true);
+  check('html: the skip link targets the main content', html.includes('href="#mainContent"'), true);
+  check('html: the main content has the skip-link target', html.includes('id="mainContent"'), true);
+  check('css: the skip link is hidden until focused', /\.skip-link\s*\{[^}]*top:\s*-100px/.test(css), true);
+  // The rule is written as a two-selector list (:focus and :focus-visible),
+  // so the assertion has to allow for the comma.
+  check(
+    'css: the skip link becomes visible on focus',
+    /\.skip-link:focus\s*(,[^{]*)?\{[^}]*top:\s*0/.test(css),
+    true
+  );
+  check(
+    'css: the skip link also matches :focus-visible',
+    /\.skip-link:focus-visible/.test(css),
+    true
+  );
+
+  // Every page in the site gets the skip link, not just the log.
+  for (const page of ['index.html', 'services.html', 'resume.html']) {
+    const p = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    check(`html: ${page} has a skip link`, p.includes('class="skip-link"'), true);
+    check(`html: ${page} has the mainContent target`, p.includes('id="mainContent"'), true);
+  }
+}
+
 // === 8. Live API integration — skipped unless API_URL is provided ==========
 (async () => {
   const API_URL = process.env.API_URL;
@@ -523,11 +613,85 @@ function check(label, actual, expected) {
             documentTypeOther: 'Vehicle Title',
             notarizationType: 'Acknowledgment',
             notes: 'created by the API test harness',
+            entryTime: '14:30',
+            venue: 'Test Venue',
+            county: 'Cowlitz',
+            signerAddress: '100 Test St, Longview WA',
           },
         },
       });
       check('api: saving an entry succeeds', created.status, 200);
       check('api: the saved entry has an id', !!(created.body && created.body.entry && created.body.entry.id), true);
+      check(
+        'api: the time of the notarial act is stored',
+        created.body && created.body.entry && created.body.entry.entryTime,
+        '14:30'
+      );
+      check(
+        'api: the venue is stored',
+        created.body && created.body.entry && created.body.entry.venue,
+        'Test Venue'
+      );
+      check(
+        'api: the county is stored',
+        created.body && created.body.entry && created.body.entry.county,
+        'Cowlitz'
+      );
+      check(
+        'api: the signer address is stored',
+        created.body && created.body.entry && created.body.entry.signerAddress,
+        '100 Test St, Longview WA'
+      );
+
+      // RCW 42.45.180 requires the time and place of the act.
+      const noVenue = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '',
+            date: '2026-11-21',
+            clientName: 'ZZ API Test',
+            documentType: 'Deed',
+            notarizationType: 'Jurat',
+            venue: '',
+            county: 'Cowlitz',
+          },
+        },
+      });
+      check('api: saving without a venue is refused', noVenue.status, 400);
+
+      const noCounty = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '',
+            date: '2026-11-21',
+            clientName: 'ZZ API Test',
+            documentType: 'Deed',
+            notarizationType: 'Jurat',
+            venue: 'Test Venue',
+            county: '',
+          },
+        },
+      });
+      check('api: saving without a county is refused', noCounty.status, 400);
+
+      const badTime = await call('save', {
+        method: 'POST',
+        body: {
+          entry: {
+            id: '',
+            date: '2026-11-21',
+            clientName: 'ZZ API Test',
+            documentType: 'Deed',
+            notarizationType: 'Jurat',
+            entryTime: 'not a time',
+            venue: 'Test Venue',
+            county: 'Cowlitz',
+          },
+        },
+      });
+      check('api: saving with a malformed time is refused', badTime.status, 400);
       check(
         'api: the Other description is stored',
         created.body && created.body.entry && created.body.entry.documentTypeOther,
@@ -590,6 +754,10 @@ function check(label, actual, expected) {
             documentTypeOther: 'Vehicle Title',
             notarizationType: 'Acknowledgment',
             notes: 'created by the API test harness',
+            entryTime: '15:45',
+            venue: 'Edited Venue',
+            county: 'Clark',
+            signerAddress: '200 Edited Ave, Vancouver WA',
             identificationType: 'Driver\'s License',
             identificationNumber: 'WA-DL-99887766',
           },
@@ -624,6 +792,7 @@ function check(label, actual, expected) {
           entry: {
             id: '', date: '2026-11-21', clientName: 'ZZ Bad Id',
             documentType: 'Deed', notarizationType: 'Acknowledgment', notes: '',
+            venue: 'Test Venue', county: 'Cowlitz',
             identificationType: 'Telepathy',
             identificationNumber: 'X',
           },
@@ -638,6 +807,7 @@ function check(label, actual, expected) {
           entry: {
             id: '', date: '2026-11-21', clientName: 'ZZ No Id Type',
             documentType: 'Deed', notarizationType: 'Acknowledgment', notes: '',
+            venue: 'Test Venue', county: 'Cowlitz',
             identificationType: '',
             identificationNumber: 'WA-DL-123',
           },
@@ -657,6 +827,10 @@ function check(label, actual, expected) {
             documentTypeOther: 'Vehicle Title',
             notarizationType: 'Jurat',
             notes: 'edited by the API test harness',
+            entryTime: '15:45',
+            venue: 'Edited Venue',
+            county: 'Clark',
+            signerAddress: '200 Edited Ave, Vancouver WA',
             identificationType: 'State ID',
             identificationNumber: 'S-12345',
           },
@@ -681,6 +855,7 @@ function check(label, actual, expected) {
           entry: {
             id: '', date: '2026-11-21', clientName: 'ZZ Thumb',
             documentType: 'Deed', notarizationType: 'Jurat', notes: '',
+            venue: 'Test Venue', county: 'Cowlitz',
             identificationType: 'Thumb Print',
             identificationNumber: 'Right thumb, rolled ink',
           },

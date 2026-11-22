@@ -99,6 +99,10 @@ function db(): PDO
     foreach ([
         'identification_type'   => "TEXT NOT NULL DEFAULT ''",
         'identification_number' => "TEXT NOT NULL DEFAULT ''",
+        'entry_time'            => "TEXT NOT NULL DEFAULT ''",
+        'venue'                 => "TEXT NOT NULL DEFAULT ''",
+        'county'                => "TEXT NOT NULL DEFAULT ''",
+        'signer_address'        => "TEXT NOT NULL DEFAULT ''",
     ] as $column => $definition) {
         if (!in_array($column, $existing, true)) {
             $pdo->exec('ALTER TABLE entries ADD COLUMN ' . $column . ' ' . $definition);
@@ -116,6 +120,10 @@ function db(): PDO
             notes             TEXT NOT NULL DEFAULT "",
             identification_type TEXT NOT NULL DEFAULT "",
             identification_number TEXT NOT NULL DEFAULT "",
+            entry_time        TEXT NOT NULL DEFAULT "",
+            venue             TEXT NOT NULL DEFAULT "",
+            county            TEXT NOT NULL DEFAULT "",
+            signer_address    TEXT NOT NULL DEFAULT "",
             image_file        TEXT,
             created_at        TEXT NOT NULL,
             updated_at        TEXT NOT NULL
@@ -309,6 +317,10 @@ function entry_to_row(array $r): array
         'notes'             => $r['notes'],
         'identificationType' => $r['identification_type'],
         'identificationNumber' => $r['identification_number'],
+        'entryTime' => $r['entry_time'],
+        'venue' => $r['venue'],
+        'county' => $r['county'],
+        'signerAddress' => $r['signer_address'],
         'hasImage'          => $r['image_file'] !== null && $r['image_file'] !== '',
         'createdAt'         => $r['created_at'],
         'updatedAt'         => $r['updated_at'],
@@ -338,6 +350,10 @@ function handle_save(): never
     $notes = clean_text($entry['notes'] ?? '', 2000);
     $identificationType = clean_text($entry['identificationType'] ?? '', 80);
     $identificationNumber = clean_text($entry['identificationNumber'] ?? '', 200);
+    $entryTime = clean_text($entry['entryTime'] ?? '', 10);
+    $venue = clean_text($entry['venue'] ?? '', 160);
+    $county = clean_text($entry['county'] ?? '', 80);
+    $signerAddress = clean_text($entry['signerAddress'] ?? '', 240);
 
     if (!valid_date($date)) {
         fail('A valid date is required.');
@@ -360,6 +376,14 @@ function handle_save(): never
     if ($identificationNumber !== '' && $identificationType === '') {
         fail('Select an identification type.');
     }
+    // RCW 42.45.180 requires the journal to record the time and place of
+    // the notarial act. The time is HH:MM in 24-hour form.
+    if ($entryTime !== '' && !preg_match('/^\d{2}:\d{2}$/', $entryTime)) {
+        fail('Enter the time of the notarial act as HH:MM.');
+    }
+    if ($venue === '' || $county === '') {
+        fail('Enter the venue and county of the notarial act.');
+    }
 
     $pdo = db();
     $now = gmdate('c');
@@ -370,13 +394,15 @@ function handle_save(): never
             'INSERT INTO entries
                 (id, log_date, client_name, document_type, document_type_other,
                  notarization_type, notes, identification_type,
-                 identification_number, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 identification_number, entry_time, venue, county,
+                 signer_address, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id, $date, $clientName, $documentType, $documentTypeOther,
             $notarizationType, $notes, $identificationType,
-            $identificationNumber, $now, $now,
+            $identificationNumber, $entryTime, $venue, $county,
+            $signerAddress, $now, $now,
         ]);
     } else {
         $stmt = $pdo->prepare(
@@ -384,13 +410,15 @@ function handle_save(): never
                 log_date = ?, client_name = ?, document_type = ?,
                 document_type_other = ?, notarization_type = ?, notes = ?,
                 identification_type = ?, identification_number = ?,
+                entry_time = ?, venue = ?, county = ?, signer_address = ?,
                 updated_at = ?
              WHERE id = ?'
         );
         $stmt->execute([
             $date, $clientName, $documentType, $documentTypeOther,
             $notarizationType, $notes, $identificationType,
-            $identificationNumber, $now, $id,
+            $identificationNumber, $entryTime, $venue, $county,
+            $signerAddress, $now, $id,
         ]);
         if ($stmt->rowCount() === 0) {
             $exists = $pdo->prepare('SELECT COUNT(*) FROM entries WHERE id = ?');

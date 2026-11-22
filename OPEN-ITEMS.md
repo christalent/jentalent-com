@@ -3,7 +3,7 @@
 Tracking for work that is agreed on but not yet started. Nothing in this file
 is implemented; it is a record of decisions and of the work still owed.
 
-Last updated: 2026-11-21
+Last updated: 2026-11-21 (later — compliance fields and accessibility items landed)
 
 **These are also tracked as GitHub Issues** — the repo's convention is that
 work lives in the Issues tab, so this file is the long-form version and the
@@ -14,8 +14,8 @@ issues are the work queue:
 | [#11](https://github.com/christalent/jentalent-com/issues/11) | Backup and durability for the notary log |
 | [#12](https://github.com/christalent/jentalent-com/issues/12) | Rotate the PIN off the chat log |
 | [#13](https://github.com/christalent/jentalent-com/issues/13) | Reimplement "Clear All Entries" — **closed, work not done** |
-| [#14](https://github.com/christalent/jentalent-com/issues/14) | Notarial compliance fields (RCW 42.45.180) — **reopened** |
-| [#15](https://github.com/christalent/jentalent-com/issues/15) | Remaining code-review items — **reopened** |
+| [#14](https://github.com/christalent/jentalent-com/issues/14) | Notarial compliance fields (RCW 42.45.180) — **done** |
+| [#15](https://github.com/christalent/jentalent-com/issues/15) | Remaining code-review items — **done except the CSP header, which is blocked by #19** |
 | [#16](https://github.com/christalent/jentalent-com/issues/16) | Encrypt the uploaded ID images at rest — **reopened** |
 | [#17](https://github.com/christalent/jentalent-com/issues/17) | Merge the branch into master — done |
 | [#18](https://github.com/christalent/jentalent-com/issues/18) | Rewrite the stale README — done |
@@ -167,11 +167,11 @@ the uploaded images, not just the database rows.
 
 ## 4. Notarial compliance fields (RCW 42.45.180)
 
-**Status:** OPEN — partially addressed.
+**Status:** DONE — 2026-11-21.
 
 The statute requires the journal record to include the time and place of the
-notarial act, and the signer's address and method of identification. What
-exists today:
+notarial act, and the signer's address and method of identification. The
+field set now reads:
 
 | Field | Status |
 |---|---|
@@ -179,31 +179,49 @@ exists today:
 | Client name | Present |
 | Document type (+ Other description) | Present |
 | Notarization type | Present |
+| **Time of the act** | **Present (added 2026-11-21, required)** |
+| **Venue** | **Present (added 2026-11-21, required)** |
+| **County** | **Present (added 2026-11-21, required)** |
+| **Signer address** | **Present (added 2026-11-21, optional)** |
 | Notes | Present |
 | Identification type | Present (added 2026-11-21) |
 | Identification number / details | Present (added 2026-11-21) |
 | Identification image | Present (added 2026-11-21) |
-| **Time of the act** | **Missing** |
-| **Venue / county** | **Missing** |
-| **Signer address** | **Missing** |
 
-The identification fields get closer but do not close the gap — a journal
-record without the time and place of the act is still non-compliant.
+The time, venue, and county are required, and the server rejects a save
+that omits them or that carries a malformed time. The log table gained a
+Time / Place column and the CSV export gained all four fields. The
+existing database was migrated in place.
+
+**One thing deliberately left undone:** the pre-existing entry was not
+backfilled. The time, venue, and county of the 2026-11-17 record are
+Jen's to supply, not values to infer, so the entry stands with those
+fields blank and must be edited before the log is treated as fully
+compliant.
 
 ---
 
 ## 5. Remaining code-review items
 
-**Status:** OPEN — from the original review, not yet addressed.
+**Status:** DONE except the header item — 2026-11-21.
 
-- `role="dialog"` sits on the modal wrapper rather than `.modal-content`.
-- No skip-to-content link.
-- The two statistics at the top of the log are separate live regions; they
-  should be a single combined region.
-- The log page sets no `Cache-Control` or CSP headers of its own.
-- `main.js` is not deferred.
-- The README still describes the old client-side `localStorage` log and the
-  old `~/repos/websites/` deploy path. **It is stale** — see item 7.
+- ~~`role="dialog"` sits on the modal wrapper rather than `.modal-content`.~~
+  **Fixed.** Moved onto `.modal-content`, which is the element that
+  actually behaves as the dialog; on the wrapper it described the backdrop.
+- ~~No skip-to-content link.~~ **Fixed.** An `a.skip-link` is the first
+  element in `<body>` on all four pages, and `<main>` carries
+  `id="mainContent"` to target. Off-screen until focused.
+- ~~The two statistics at the top of the log are separate live regions.~~
+  **Fixed.** One `aria-live="polite" aria-atomic="true"` region on the
+  container, so they are announced together rather than as two unrelated
+  updates.
+- ~~`main.js` is not deferred.~~ **Fixed.** Now `<script defer>`.
+- ~~The README still describes the old client-side `localStorage` log.~~
+  **Fixed.** Rewritten for the server-backed log.
+- **Still open:** the log page sets no `Cache-Control` or CSP headers of
+  its own. This account's Apache has no `mod_headers`, and a `.htaccess`
+  `Header set` directive produces a 500 on every CSS and JS request — so
+  this one is blocked by item 9 and tracked in issue #19.
 
 ---
 

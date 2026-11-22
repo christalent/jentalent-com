@@ -224,6 +224,14 @@
     return type || number || '';
   }
 
+  // Time and place of the notarial act in one cell.
+  function venueLabel(entry) {
+    const time = entry.entryTime || '';
+    const place = [entry.venue, entry.county].filter(Boolean).join(', ');
+    if (time && place) return time + ' \u2014 ' + place;
+    return time || place || '\u2014';
+  }
+
   function renderEntries() {
     const tbody = getEl('logTableBody');
     const emptyState = getEl('emptyState');
@@ -248,6 +256,7 @@
       tr.appendChild(makeCell(entry.notarizationType || ''));
       tr.appendChild(makeCell(entry.notes || '—'));
       tr.appendChild(makeCell(identificationLabel(entry)));
+      tr.appendChild(makeCell(venueLabel(entry)));
       tr.appendChild(makeActionsCell(entry));
       tbody.appendChild(tr);
     });
@@ -323,6 +332,14 @@
     if (idTypeEl) idTypeEl.value = '';
     const idNumEl = getEl('identificationNumber');
     if (idNumEl) idNumEl.value = '';
+    const timeEl = getEl('entryTime');
+    if (timeEl) timeEl.value = '';
+    const venueEl = getEl('venue');
+    if (venueEl) venueEl.value = '';
+    const countyEl = getEl('county');
+    if (countyEl) countyEl.value = '';
+    const addrEl = getEl('signerAddress');
+    if (addrEl) addrEl.value = '';
     toggleOtherField();
     clearImagePreview();
     showModal();
@@ -351,6 +368,14 @@
     if (idTypeEl) idTypeEl.value = entry.identificationType || '';
     const idNumEl = getEl('identificationNumber');
     if (idNumEl) idNumEl.value = entry.identificationNumber || '';
+    const timeEl = getEl('entryTime');
+    if (timeEl) timeEl.value = entry.entryTime || '';
+    const venueEl = getEl('venue');
+    if (venueEl) venueEl.value = entry.venue || '';
+    const countyEl = getEl('county');
+    if (countyEl) countyEl.value = entry.county || '';
+    const addrEl = getEl('signerAddress');
+    if (addrEl) addrEl.value = entry.signerAddress || '';
     toggleOtherField();
     showImagePreview(entry);
     showModal();
@@ -527,6 +552,10 @@
     const notesEl = getEl('notes');
     const idTypeEl = getEl('identificationType');
     const idNumEl = getEl('identificationNumber');
+    const timeEl = getEl('entryTime');
+    const venueEl = getEl('venue');
+    const countyEl = getEl('county');
+    const addrEl = getEl('signerAddress');
     if (!idEl || !dateEl || !clientEl || !docEl || !notEl || !notesEl) return;
 
     const record = {
@@ -539,6 +568,10 @@
       notes: notesEl.value.trim(),
       identificationType: idTypeEl ? idTypeEl.value : '',
       identificationNumber: idNumEl ? idNumEl.value.trim() : '',
+      entryTime: timeEl ? timeEl.value : '',
+      venue: venueEl ? venueEl.value.trim() : '',
+      county: countyEl ? countyEl.value.trim() : '',
+      signerAddress: addrEl ? addrEl.value.trim() : '',
     };
 
     if (!record.date) {
@@ -563,6 +596,12 @@
     }
     if (record.identificationNumber && !record.identificationType) {
       showFormError('Select an identification type.', 'identificationType');
+      return;
+    }
+    // RCW 42.45.180: the journal must record the time and place of the
+    // notarial act.
+    if (!record.venue || !record.county) {
+      showFormError('Enter the venue and county of the notarial act.', 'venue');
       return;
     }
 
@@ -701,6 +740,10 @@
       'Notes',
       'Identification Type',
       'Identification Number',
+      'Time of Notarial Act',
+      'Venue',
+      'County',
+      'Signer Address',
     ];
     const rows = sortedEntries().map((e) => [
       e.date,
@@ -710,6 +753,10 @@
       e.notes || '',
       e.identificationType || '',
       e.identificationNumber || '',
+      e.entryTime || '',
+      e.venue || '',
+      e.county || '',
+      e.signerAddress || '',
     ]);
     const csv =
       [headers, ...rows]

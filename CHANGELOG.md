@@ -1,5 +1,84 @@
 # Changelog
 
+## 2026-11-21 — Added the RCW 42.45.180 journal fields, and closed the accessibility review items
+
+Closes #14 and most of #15.
+
+### The compliance fields (RCW 42.45.180)
+
+A notarial journal must record the **time and place of the act**. The log
+had the date, the client, the document, the notarization type, the
+identification details, and notes — but not the time, not the venue, and
+not the county. A record without those is not a compliant journal entry.
+
+Four fields added to the entry form, after Notarization Type:
+
+- **Time of Notarial Act** — required, native `<input type="time">`
+- **Venue / Address of Notarial Act** — required
+- **County** — required
+- **Signer Address** — optional
+
+Server-side in `api.php`:
+
+- Schema gains `entry_time`, `venue`, `county`, `signer_address`, with an
+  idempotent migration for the existing database.
+- The time must be `HH:MM`; venue and county cannot be empty. Both are
+  rejected with a 400 and a readable message.
+- The client mirrors the same rules so the user is not made to round-trip
+  to the server for a validation error.
+
+The log table gains a **Time / Place** column, and the CSV export gains
+all four fields.
+
+**Existing entries are not backfilled.** The one live record (Racheal
+Barnes, 2026-11-17) has blank values for the new fields. Those are Jen's
+records to supply, not values to guess at, so the entry was left intact
+and must be edited before the log is treated as fully compliant. Editing
+it requires the new fields, since the API now requires them.
+
+### Accessibility
+
+- **`role="dialog"` and `aria-modal` moved off the overlay wrapper** and
+  onto `.modal-content`, which is the element that actually behaves as
+  the dialog. On the wrapper they described the backdrop.
+- **The two statistics are now one live region.** They were separate
+  `role="status" aria-live="polite"` boxes, so a screen reader announced
+  them as two unrelated updates. Now a single `aria-live="polite"`
+  region with `aria-atomic="true"` on the container.
+- **`main.js` is deferred** on the log page, so it cannot block parsing.
+- **Skip-to-content link added to all four pages.** Each page gets an
+  `a.skip-link` as the first element in `<body>`, and `<main>` gets
+  `id="mainContent"` to target. The link is positioned off-screen and
+  slides into the top-left when it takes focus. `:focus-visible` is
+  matched as well as `:focus`, and the transition was dropped so the link
+  appears immediately.
+
+### Bug found during the live test
+
+The first version of the INSERT listed **15 columns but only 14
+placeholders** — the new `signer_address` column was added to the
+column list without a matching `?`. Every save failed with a generic
+500. Caught by the live integration suite, not by the unit tests, which
+is the point of running them against the deployed endpoint.
+
+### Testing
+
+**153 assertions** — 105 unit/source-level, 48 live API integration.
+Up from 106. The live layer now covers the compliance fields: stored on
+create, refused without a venue, refused without a county, refused with a
+malformed time. The unit layer covers the schema, the migration, the
+client wiring, the CSV columns, the dialog semantics, the combined live
+region, the deferred script, and the skip link on all four pages.
+
+### Still open
+
+- The **Cache-Control / CSP** header for the log page is not done. This
+  account's Apache has no `mod_headers`, and a `.htaccess` `Header set`
+  directive produces a 500 on every CSS and JS request. Tracked in #19.
+- **Image encryption at rest** is not done. Tracked in #16.
+- **Backup** for the database and uploads is not done. Tracked in #11.
+- The **PIN** is still the one supplied over chat. Tracked in #12.
+
 ## 2026-11-21 — Fixed: the entry dialog did not scroll, and the preview box rendered as a broken image
 
 Two separate bugs, both found by Jen looking at the live site on a phone.

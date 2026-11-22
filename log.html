@@ -39,10 +39,13 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=20261121-2">
+  <link rel="stylesheet" href="style.css?v=20261122-033100">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
 </head>
 <body>
+  <!-- Skip link: lets a keyboard user jump past the nav straight to the
+       content. Visually hidden until it receives focus. -->
+  <a class="skip-link" href="#mainContent">Skip to main content</a>
   <header>
     <nav>
       <div class="logo">Jenifer Talent</div>
@@ -64,7 +67,7 @@
     </nav>
   </header>
 
-  <main>
+  <main id="mainContent">
     <section class="page-header">
       <div class="container">
         <h1>Notary Log</h1>
@@ -119,12 +122,15 @@
           </div>
         </div>
 
-        <div class="log-stats">
-          <div class="stat-box" role="status" aria-live="polite">
+        <!-- One live region for both statistics. Two separate aria-live
+             regions are announced one after the other, which reads as two
+             unrelated updates rather than one summary. -->
+        <div class="log-stats" role="status" aria-live="polite" aria-atomic="true">
+          <div class="stat-box">
             <span class="stat-number" id="totalEntries">0</span>
             <span class="stat-label">Total Entries</span>
           </div>
-          <div class="stat-box" role="status" aria-live="polite">
+          <div class="stat-box">
             <span class="stat-number" id="thisMonth">0</span>
             <span class="stat-label">This Month</span>
           </div>
@@ -141,6 +147,7 @@
                 <th scope="col">Notarization Type</th>
                 <th scope="col">Notes</th>
                 <th scope="col">Identification</th>
+                <th scope="col">Time / Place</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -157,8 +164,8 @@
   </main>
 
   <!-- Add/Edit Modal -->
-  <div id="entryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal-content">
+  <div id="entryModal" class="modal">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
         <h2 id="modalTitle">Add Entry</h2>
         <button type="button" class="modal-close" aria-label="Close dialog" id="closeModalBtn">&times;</button>
@@ -219,6 +226,26 @@
         </div>
 
         <div class="form-group">
+          <label for="entryTime">Time of Notarial Act *</label>
+          <input type="time" id="entryTime" required>
+        </div>
+
+        <div class="form-group">
+          <label for="venue">Venue / Address of Notarial Act *</label>
+          <input type="text" id="venue" placeholder="Where the act took place" required maxlength="160">
+        </div>
+
+        <div class="form-group">
+          <label for="county">County *</label>
+          <input type="text" id="county" placeholder="e.g. Cowlitz" required maxlength="80">
+        </div>
+
+        <div class="form-group">
+          <label for="signerAddress">Signer Address</label>
+          <input type="text" id="signerAddress" placeholder="Address of the signer (optional)" maxlength="240">
+        </div>
+
+        <div class="form-group">
           <label for="notes">Notes</label>
           <textarea id="notes" rows="3" placeholder="Any additional details (optional)" maxlength="1000"></textarea>
         </div>
@@ -264,7 +291,7 @@
     </div>
   </footer>
 
-  <script src="main.js?v=20261121-2"></script>
-  <script defer src="log.js?v=20261121-2"></script>
+  <script defer src="main.js?v=20261122-033100"></script>
+  <script defer src="log.js?v=20261122-033100"></script>
 </body>
 </html>
