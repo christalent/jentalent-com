@@ -13,13 +13,21 @@ issues are the work queue:
 |---|---|
 | [#11](https://github.com/christalent/jentalent-com/issues/11) | Backup and durability for the notary log |
 | [#12](https://github.com/christalent/jentalent-com/issues/12) | Rotate the PIN off the chat log |
-| [#13](https://github.com/christalent/jentalent-com/issues/13) | Reimplement "Clear All Entries" |
-| [#14](https://github.com/christalent/jentalent-com/issues/14) | Notarial compliance fields (RCW 42.45.180) |
-| [#15](https://github.com/christalent/jentalent-com/issues/15) | Remaining code-review items |
-| [#16](https://github.com/christalent/jentalent-com/issues/16) | Encrypt the uploaded ID images at rest |
-| [#17](https://github.com/christalent/jentalent-com/issues/17) | Merge the branch into master |
-| [#18](https://github.com/christalent/jentalent-com/issues/18) | Rewrite the stale README |
-| [#19](https://github.com/christalent/jentalent-com/issues/19) | Add a durable cache policy for the site assets (closed by PR #20 — workaround landed, durable fix still open) |
+| [#13](https://github.com/christalent/jentalent-com/issues/13) | Reimplement "Clear All Entries" — **closed, work not done** |
+| [#14](https://github.com/christalent/jentalent-com/issues/14) | Notarial compliance fields (RCW 42.45.180) — **reopened** |
+| [#15](https://github.com/christalent/jentalent-com/issues/15) | Remaining code-review items — **reopened** |
+| [#16](https://github.com/christalent/jentalent-com/issues/16) | Encrypt the uploaded ID images at rest — **reopened** |
+| [#17](https://github.com/christalent/jentalent-com/issues/17) | Merge the branch into master — done |
+| [#18](https://github.com/christalent/jentalent-com/issues/18) | Rewrite the stale README — done |
+| [#19](https://github.com/christalent/jentalent-com/issues/19) | Durable cache policy — **reopened** |
+
+> **Note on the "closed" markers.** PR #20 carried a `Closes #N` line that
+> closed #13, #14, #15, #16, #18 and #19 as collateral — but only #18 was
+> actually done. #14, #15, #16 and #19 have been **reopened** with a note
+> recording exactly what is still missing and how that was verified.
+> #13 was closed deliberately: "Clear All Entries" was *removed* rather
+> than left broken, and nothing replaced it. That one is genuinely open
+> work, just tracked as a removal instead of a feature.
 
 ---
 
@@ -142,7 +150,10 @@ and a new salt. The current PIN should not be reused.
 
 ## 3. "Clear All Entries" needs reimplementing
 
-**Status:** OPEN — removed, not replaced.
+**Status:** OPEN (issue #13) — removed, not replaced.
+
+**Note:** PR #20's `Closes` line closed #13 without the work being done.
+The removal itself is real and deliberate; the replacement is not built.
 
 The action existed when the log was client-side and cleared `localStorage`. With
 server-side storage there is no equivalent, so it was **removed rather than
